@@ -1,0 +1,812 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>MORI // manager console</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --bg:#111418;--panel:#171b22;--panel2:#202633;--rail:#0d1117;--line:#3c4658;
+  --text:#f3f6fb;--muted:#b6c0d0;--dim:#7f8aa0;--blue:#67b7ff;--blue2:#3b82f6;
+  --green:#8bd17c;--yellow:#ffd38a;--red:#ff8f7a;--purple:#d7a8ff;--cyan:#99e2ff;
+  --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  --sans:Inter,Pretendard,"Noto Sans KR",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:var(--sans)}
+button,textarea,input{font:inherit}button{cursor:pointer}
+#login-overlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:50;padding:24px}
+.login-card{width:min(420px,100%);border:1px solid var(--line);background:var(--panel);padding:28px}
+.login-mark{font:700 14px var(--mono);color:var(--blue);margin-bottom:14px}.login-card h1{font:600 24px var(--mono);margin:0 0 8px;color:#fff}.login-card p{margin:0 0 22px;color:var(--muted);line-height:1.65;font-size:13px}
+.primary-btn{width:100%;border:1px solid #1784bd;background:var(--blue2);color:#fff;padding:11px 14px;font-weight:700}.primary-btn:hover{background:#118bd0}.login-help,#login-error{font:11px var(--mono);margin-top:12px;color:var(--muted)}#login-error{color:var(--red)}
+#app-root{display:none}.workbench{min-height:100vh;display:grid;grid-template-columns:48px 220px minmax(0,1fr);grid-template-rows:minmax(0,1fr) 23px}
+.activitybar{grid-column:1;grid-row:1;background:var(--rail);border-right:1px solid #111;display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:5px}
+.activity-logo{width:34px;height:34px;display:grid;place-items:center;font:800 18px var(--mono);color:#fff;border-left:2px solid var(--blue2)}
+.activity-icon{width:40px;height:40px;border:0;background:transparent;color:#777;font:16px var(--mono);position:relative}.activity-icon.active,.activity-icon:hover{color:#fff}.activity-icon.active:before{content:"";position:absolute;left:0;top:5px;bottom:5px;width:2px;background:var(--blue2)}
+.activity-spacer{flex:1}.activity-icon.small{font-size:13px}
+.explorer{grid-column:2;grid-row:1;background:var(--panel);border-right:1px solid #111;min-width:0;overflow:auto}.explorer-title{height:35px;display:flex;align-items:center;padding:0 14px;font:11px var(--mono);letter-spacing:.08em;color:#bbb;text-transform:uppercase}.tree-group{border-top:1px solid #333}.tree-group-title{height:28px;display:flex;align-items:center;padding:0 9px;font:700 11px var(--mono);color:#ccc;background:#262627}.tree-group-title:before{content:"⌄";margin-right:5px;color:#999}.file-btn{width:100%;border:0;background:transparent;color:#bbb;text-align:left;padding:7px 10px 7px 23px;font:12px var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.file-btn:hover{background:#2a2d2e;color:#fff}.file-btn.active{background:#37373d;color:#fff}.file-btn .ext{color:var(--cyan);margin-right:7px}.file-btn[data-page="calendar"] .ext{color:var(--blue)}.file-btn[data-page="weekly"] .ext{color:var(--yellow)}.file-btn[data-page="rhythm"] .ext{color:var(--green)}.file-btn[data-page="loops"] .ext{color:var(--purple)}
+.explorer-foot{padding:13px 12px;color:#777;font:10px var(--mono);line-height:1.55}.explorer-foot button{border:0;background:transparent;color:#999;padding:0;font:10px var(--mono)}
+.editor{grid-column:3;grid-row:1;min-width:0;background:var(--bg);display:flex;flex-direction:column}.tabbar{height:35px;background:var(--panel);display:flex;border-bottom:1px solid #111;flex:0 0 auto}.tab{height:35px;padding:0 14px;display:flex;align-items:center;gap:8px;background:var(--bg);border-top:1px solid var(--blue2);font:12px var(--mono);color:#ddd}.tab-dot{width:6px;height:6px;border-radius:50%;background:var(--green)}
+.breadcrumb{height:29px;display:flex;align-items:center;padding:0 16px;color:#888;font:11px var(--mono);border-bottom:1px solid #252525;flex:0 0 auto}.breadcrumb strong{color:#bbb;font-weight:400}.editor-scroll{overflow:auto;flex:1}.editor-inner{width:min(1320px,100%);padding:22px 28px 54px}
+.page{display:none}.page.active{display:block}.line-no{user-select:none;color:#75809a;width:30px;display:inline-block;text-align:right;margin-right:14px;font:12px var(--mono)}
+.console-title{font:700 13px var(--mono);color:var(--blue);letter-spacing:.04em}.comment{color:var(--green);font:13px var(--mono);line-height:1.7}.muted{color:var(--muted)}
+#page-chat.page.active{display:flex;flex-direction:column;min-height:calc(100vh - 170px)}
+.chat-layout{display:grid;grid-template-columns:minmax(0,1fr) 370px;gap:20px;min-height:0;flex:1}
+.chat-main,.chat-side{min-height:0}
+.chat-shell{display:flex;flex-direction:column;min-height:0;height:100%}
+.chat-summary{padding:18px 20px;border:1px solid var(--line);background:linear-gradient(180deg,#18202d 0%,#141922 100%);margin-bottom:14px;box-shadow:0 12px 32px rgba(0,0,0,.18)}
+.chat-title{margin:6px 0 6px;font:700 29px var(--sans);color:#fff;letter-spacing:-.02em}
+.chat-subtitle{margin:0;color:var(--muted);font:15px/1.6 var(--sans)}
+.chat-panel{border:1px solid var(--line);background:linear-gradient(180deg,#131821 0%,#0f141c 100%);display:flex;flex-direction:column;min-height:0;flex:1;box-shadow:0 16px 44px rgba(0,0,0,.18)}
+.brief-strip{padding:13px 18px;border-bottom:1px solid #2d3748;font:14px/1.7 var(--mono);color:#d9e2ef;background:rgba(255,255,255,.02)}.brief-strip .ok{color:var(--green)}.brief-strip .key{color:var(--cyan)}
+.terminal{padding:18px 18px 6px;display:flex;flex-direction:column;gap:14px;flex:1;overflow:auto;min-height:240px}.log{display:grid;grid-template-columns:92px minmax(0,1fr);gap:12px;font:15px/1.8 var(--sans)}.log .who{color:#8ea0b8;text-align:right;font:700 13px var(--mono);padding-top:3px}.log.user .who{color:var(--cyan)}.log.system .who{color:var(--green)}.log .text{white-space:pre-wrap;color:#e7edf7}.log.user .text{color:#fff}
+.command-shell{margin-top:auto;padding:16px;border-top:1px solid #2d3748;background:rgba(17,20,24,.96)}.command-box{border:1px solid #4f5d74;background:#0f131a;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:stretch;box-shadow:none}.prompt{font:700 14px var(--mono);color:var(--blue);padding:18px 0 0 16px}.chat-input{border:0;outline:0;resize:none;min-height:72px;max-height:170px;background:transparent;color:#fff;padding:16px 14px;font:16px/1.7 var(--sans)}.chat-input::placeholder{color:#8d98aa}.send-btn{border:0;border-left:1px solid #334155;background:#1a2432;color:#e8f0ff;align-self:stretch;padding:0 18px;font:700 12px var(--mono);min-width:96px}.send-btn:hover{background:#21324b;color:#fff}
+.quick{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.chip{border:1px solid #334155;background:#121923;color:#c4d0df;padding:7px 11px;margin-right:0;font:12px var(--mono);border-radius:999px}.chip:hover{color:#fff;border-color:#5b7fb2;background:#182434}.chip:before{content:"/";color:var(--blue);margin-right:5px}
+.section{border-top:1px solid #30384a;margin-top:20px;padding-top:16px}.section-head{display:flex;justify-content:space-between;gap:15px;align-items:baseline;margin-bottom:12px}.section-head h2{margin:0;font:700 13px var(--mono);color:var(--yellow);letter-spacing:.04em}.section-note{font:11px var(--mono);color:#93a0b6}
+.radar-panel{border:1px solid var(--line);background:linear-gradient(180deg,#131821 0%,#0f141c 100%);padding:18px 18px 12px;height:100%;min-height:0;overflow:auto;box-shadow:0 16px 44px rgba(0,0,0,.18)}
+.radar-row,.rhythm-row,.loop-row{display:grid;grid-template-columns:88px minmax(0,1fr) auto;gap:14px;padding:11px 0;border-bottom:1px solid #222b39;align-items:start;font:14px/1.65 var(--sans)}.radar-row:last-child,.rhythm-row:last-child,.loop-row:last-child{border-bottom:0}.when,.tag{color:var(--purple);font:700 12px var(--mono)}.row-title{color:#f1f5fb;font-weight:600;font-size:16px}.row-meta{color:#a8b3c3;font-size:12px;margin-top:4px}.critical{color:var(--red)}.empty{font:12px var(--mono);color:#95a2b6;padding:10px 0}
+.md-title{font:700 24px var(--mono);color:#fff;margin:0 0 7px}.md-sub{font:13px var(--mono);color:#95a2b6;margin-bottom:24px}.statline{font:14px/1.75 var(--mono);padding:4px 0}.statline .k{color:var(--cyan)}.statline .v{color:#fff}.statline .hint{color:#95a2b6}.advice{margin-top:16px;padding:14px 16px;border-left:2px solid var(--blue2);background:#18212c;font:14px/1.75 var(--sans);color:#d9e2ef}
+.rhythm-block{margin:16px 0 25px}.rhythm-label{font:700 11px var(--mono);color:var(--green);margin-bottom:5px}.rhythm-row{grid-template-columns:92px minmax(0,1fr)}.json-key{color:var(--cyan)}.json-value{color:var(--yellow)}
+.event-row{display:grid;grid-template-columns:105px minmax(0,1fr) auto;gap:12px;padding:8px 0;border-bottom:1px solid #272727;align-items:start;font:12px/1.55 var(--mono)}.event-row:last-child{border-bottom:0}.event-date{color:var(--blue)}.event-actions{display:flex;gap:3px}.loop-row{grid-template-columns:86px minmax(0,1fr) auto}.loop-state{font-weight:700}.state-new{color:#858585}.state-execute{color:var(--green)}.state-park{color:var(--yellow)}.loop-actions{display:flex;gap:3px}.mini-btn{border:1px solid #444;background:#252526;color:#aaa;padding:3px 6px;font:10px var(--mono)}.mini-btn:hover{color:#fff;border-color:#777}.mini-btn.danger:hover{color:var(--red);border-color:var(--red)}
+.statusbar{grid-column:1/4;grid-row:2;background:var(--blue2);display:flex;align-items:center;gap:16px;color:#fff;padding:0 9px;font:10px var(--mono);white-space:nowrap;overflow:hidden}.statusbar .spacer{flex:1}.status-muted{opacity:.8}
+.toast{position:fixed;right:18px;bottom:38px;background:#252526;color:#ddd;border:1px solid #444;padding:9px 12px;font:11px var(--mono);opacity:0;transform:translateY(8px);pointer-events:none;transition:.16s;z-index:60}.toast.show{opacity:1;transform:translateY(0)}.loading{opacity:.65;pointer-events:none}
+
+.calendar-toolbar,.people-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0 16px}
+.connect-btn{border:1px solid #4c4c4c;background:#252526;color:#c8c8c8;padding:7px 10px;font:11px var(--mono)}
+.connect-btn:hover{border-color:#777;color:#fff}.connect-btn.connected{border-color:#4f7d4f;color:#9fd49f}
+.source-badge{display:inline-block;margin-left:7px;padding:1px 5px;border:1px solid #444;color:#888;font:9px var(--mono);vertical-align:1px}
+.source-badge.google{color:var(--blue);border-color:#365a74}.source-badge.mori{color:var(--green);border-color:#4b6743}.source-badge.people{color:var(--purple);border-color:#654f65}
+.people-row{display:grid;grid-template-columns:120px minmax(0,1fr) auto;gap:12px;padding:8px 0;border-bottom:1px solid #272727;font:12px/1.55 var(--mono);align-items:start}.people-row:last-child{border-bottom:0}
+.person-name{color:var(--purple)}.person-context{color:#777;font-size:10px;margin-top:2px}
+.split-brief{margin-top:8px;border-left:2px solid #3d3d3d;padding-left:10px}.split-brief strong{color:var(--yellow)}
+.status-good{color:var(--green)}.status-off{color:#777}.status-warn{color:var(--yellow)}
+.qcount{color:var(--cyan)}
+
+@media (max-width:1100px){
+  .chat-layout{grid-template-columns:1fr}
+  .radar-panel{max-height:none}
+  #page-chat.page.active{min-height:auto}
+}
+@media (max-width:760px){
+  .workbench{display:grid;grid-template-columns:42px minmax(0,1fr);grid-template-rows:minmax(0,1fr) 23px}.activitybar{grid-column:1}.explorer{display:none}.editor{grid-column:2}.statusbar{grid-column:1/3}.editor-inner{padding:16px 14px 55px}.breadcrumb{padding-left:12px}.chat-layout{grid-template-columns:1fr;gap:14px}.chat-summary{padding:16px}.chat-title{font-size:24px}.chat-subtitle{font-size:14px}.chat-panel{min-height:calc(100vh - 250px)}.radar-row,.loop-row{grid-template-columns:76px minmax(0,1fr)}.radar-row>*:last-child,.loop-actions{grid-column:2}.log{grid-template-columns:64px minmax(0,1fr);font-size:14px}.activity-icon{width:36px}.quick{gap:6px}.chip{padding:6px 10px;font-size:11px}
+}
+@media (max-width:640px){
+  .editor-inner{padding:12px 10px 46px}
+  .chat-title{font-size:21px}
+  .command-box{grid-template-columns:1fr}
+  .prompt{padding:14px 14px 0}
+  .send-btn{border-left:0;border-top:1px solid #334155;padding:12px 14px;width:100%}
+  .chat-input{min-height:86px;font-size:15px}
+}
+
+/* v1.0 chat polish + radar tabs + brain status */
+.radar-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px}
+.radar-tab{border:1px solid #334155;background:#111827;color:#aebbd0;padding:6px 9px;border-radius:999px;font:11px var(--mono)}
+.radar-tab:hover{color:#fff;border-color:#58729a}.radar-tab.active{background:#223047;color:#fff;border-color:#6b8fc3}
+.radar-count{display:inline-block;min-width:18px;text-align:center;margin-left:5px;color:#dfe9f7;background:#263449;border-radius:999px;padding:0 5px;font-size:10px}
+.brain-note{margin-top:10px;color:#99a7ba;font:11px/1.6 var(--mono)}
+.brain-note strong{color:#cfe6ff}
+.chat-panel{border-radius:16px;overflow:hidden}
+.chat-summary{border-radius:16px}
+.command-shell{padding:14px 16px 16px}
+.command-box{border-radius:16px;overflow:hidden;background:#0d1219}
+.chat-input{font-family:var(--sans);letter-spacing:-.01em}
+.send-btn{font-family:var(--sans);font-size:13px}
+.log .text{font-family:var(--sans);letter-spacing:-.01em}
+.radar-panel{border-radius:16px}
+
+</style>
+</head>
+<body>
+<div id="login-overlay">
+  <div class="login-card">
+    <div class="login-mark">// MORI PERSONAL OS</div>
+    <h1>&gt; authenticate</h1>
+    <p>기억하고, 시기를 감지하고, 필요한 순간에 다시 꺼내주는 개인 매니저 콘솔.</p>
+    <button class="primary-btn" id="google-signin-btn">Google로 로그인</button>
+    <div class="login-help">AUTH_PROVIDER=SUPABASE · WORK_SOURCE=SCHEDULE</div>
+    <div id="login-error"></div>
+  </div>
+</div>
+
+<div id="app-root">
+  <div class="workbench">
+    <aside class="activitybar">
+      <div class="activity-logo">M</div>
+      <button class="activity-icon active" data-page="chat" title="MORI">›_</button>
+      <button class="activity-icon" data-page="calendar" title="개인 일정">C</button>
+      <button class="activity-icon" data-page="weekly" title="주간 브리핑">W</button>
+      <button class="activity-icon" data-page="rhythm" title="리듬">R</button>
+      <button class="activity-icon" data-page="people" title="People">P</button>
+      <button class="activity-icon" data-page="loops" title="Open Loops">O</button>
+      <div class="activity-spacer"></div>
+      <button class="activity-icon small" id="refresh-btn" title="새로고침">↻</button>
+    </aside>
+
+    <aside class="explorer">
+      <div class="explorer-title">Explorer · MORI</div>
+      <div class="tree-group">
+        <div class="tree-group-title">MANAGER</div>
+        <button class="file-btn active" data-page="chat"><span class="ext">&gt;_</span>mori.chat</button>
+        <button class="file-btn" data-page="calendar"><span class="ext">●</span>calendar.md</button>
+        <button class="file-btn" data-page="weekly"><span class="ext">#</span>weekly.md</button>
+      </div>
+      <div class="tree-group">
+        <div class="tree-group-title">SYSTEM</div>
+        <button class="file-btn" data-page="rhythm"><span class="ext">{ }</span>rhythm.json</button>
+        <button class="file-btn" data-page="people"><span class="ext">@</span>people.json</button>
+        <button class="file-btn" data-page="loops"><span class="ext">○</span>open-loops.txt</button>
+      </div>
+      <div class="explorer-foot">
+        <div id="user-label">authenticated</div>
+        <div id="sync-label">sync: waiting</div>
+        <div id="gcal-label">gcal: disconnected</div>
+        <button id="gcal-connect-btn">connect google calendar</button><br>
+        <button id="signout-btn">sign out</button>
+      </div>
+    </aside>
+
+    <main class="editor">
+      <div class="tabbar"><div class="tab"><span class="tab-dot"></span><span id="tab-name">mori.chat</span></div></div>
+      <div class="breadcrumb">MORI &nbsp;&gt;&nbsp; <strong id="crumb">manager / conversation</strong></div>
+      <div class="editor-scroll">
+        <div class="editor-inner">
+          <section class="page active" id="page-chat">
+            <div class="chat-layout">
+              <div class="chat-main">
+                <div class="chat-shell">
+                  <div class="chat-summary">
+                    <div class="console-title">MORI // conversation</div>
+                    <h1 class="chat-title">바로 물어보면, MORI가 같이 정리합니다.</h1>
+                    <p class="chat-subtitle">회사 리듬, 개인 일정, 사람 이벤트, 열린 고리를 함께 보면서 답합니다. 아래 입력창은 스크롤하지 않아도 바로 보이도록 고정했습니다.</p>
+                  </div>
+
+                  <div class="chat-panel">
+                    <div class="brief-strip">
+                      <span class="ok">● ONLINE</span> &nbsp; <span class="key">manager:</span> <span id="brief-line">상태를 불러오는 중...</span>
+                    </div>
+
+                    <div class="terminal" id="chat-body">
+                      <div class="log system"><div class="who">MORI</div><div class="text">그냥 ChatGPT처럼 말하세요. 일정·회사 리듬·사람 약속·Open Loop를 함께 기억하고, 질문 의도에 맞춰 회사/개인/사람을 나눠 답합니다.</div></div>
+                    </div>
+
+                    <div class="command-shell">
+                      <div class="command-box">
+                        <div class="prompt">&gt;</div>
+                        <textarea class="chat-input" id="chat-input" rows="2" placeholder="바로 말하세요. 예: 다음주 화요일에 피부관리 예약 있어요 / 오늘 뭐 해야 해?"></textarea>
+                        <button class="send-btn" id="chat-send">RUN ↵</button>
+                      </div>
+                      <div class="quick">
+                        <button class="chip" data-prompt="오늘 뭐 해야 해?">today</button>
+                        <button class="chip" data-prompt="오늘 집 가는 길에 신경 쓸 거 있어?">commute</button>
+                        <button class="chip" data-prompt="다음주 뭐 할 거 있어?">next_week</button>
+                        <button class="chip" data-prompt="다음주 개인적으로 할 거 있거나 약속 있어?">personal</button>
+                        <button class="chip" data-prompt="다음주 회사에서 챙길 거 있어?">work</button>
+                        <button class="chip" data-prompt="사람 관련해서 챙길 거 있어?">people</button>
+                        <button class="chip" data-prompt="이번 주 요약 보여줘">weekly</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <aside class="chat-side">
+                <div class="radar-panel">
+                  <div class="section-head"><h2>WATCH // 다가오는 것</h2><span class="section-note">14일 레이더</span></div>
+                  <div class="radar-tabs">
+                    <button class="radar-tab active" data-radar="all">전체 <span class="radar-count" id="radar-count-all">0</span></button>
+                    <button class="radar-tab" data-radar="company">회사 <span class="radar-count" id="radar-count-company">0</span></button>
+                    <button class="radar-tab" data-radar="personal">개인 <span class="radar-count" id="radar-count-personal">0</span></button>
+                    <button class="radar-tab" data-radar="people">사람 <span class="radar-count" id="radar-count-people">0</span></button>
+                  </div>
+                  <div id="radar-list"></div>
+                  <div class="brain-note"><strong id="brain-side-label">BRAIN: LOCAL</strong> · LLM이 연결되면 자유대화는 외부 브레인을 사용하고, 일정 저장·삭제·반복업무 처리는 기존 규칙 엔진이 담당합니다.</div>
+                </div>
+              </aside>
+            </div>
+          </section>
+
+          <section class="page" id="page-calendar">
+            <h1 class="md-title"># calendar</h1>
+            <div class="md-sub">MORI 일정 + Google Calendar를 한 화면에서 봅니다. Google 연결 시 대화로 만든 일정도 Google Calendar에 동기화합니다.</div>
+            <div class="calendar-toolbar"><button class="connect-btn" id="calendar-connect-main">Google Calendar 연결</button><span id="calendar-status-text" class="status-off">disconnected</span></div>
+            <div class="statline"><span class="k">upcoming</span> = <span class="v" id="event-count">0</span> <span class="hint">// MORI + Google Calendar</span></div>
+            <div class="section" style="margin-top:12px"><div id="event-list"></div></div>
+          </section>
+
+          <section class="page" id="page-weekly">
+            <h1 class="md-title"># weekly_brief</h1>
+            <div class="md-sub" id="weekly-range">최근 7일 기준</div>
+            <div id="weekly-content"></div>
+            <div class="advice" id="weekly-advice">데이터를 불러오는 중...</div>
+          </section>
+
+          <section class="page" id="page-rhythm">
+            <h1 class="md-title">{ rhythm }</h1>
+            <div class="md-sub">회사 세부 체크리스트는 제외하고 연 · 분기 · 월 구조와 개인 반복관리만 표시합니다.</div>
+            <div class="section-head"><h2>WORK_CYCLES</h2><span class="section-note">annual / quarterly / monthly</span></div>
+            <div id="work-rhythm"></div>
+            <div class="section" style="margin-top:26px">
+              <div class="section-head"><h2>LIFE_CYCLES</h2><span class="section-note">운동 · 고양이 · 주거 · 자산 등</span></div>
+              <div id="personal-rhythm"></div>
+            </div>
+          </section>
+
+
+          <section class="page" id="page-people">
+            <h1 class="md-title">@ people</h1>
+            <div class="md-sub">회사 사람·가족·친구와 관련된 약속, 선물, 챙길 일을 관계 맥락과 함께 기억합니다.</div>
+            <div class="statline"><span class="k">people</span> = <span class="v" id="people-count">0</span> <span class="hint">// open events: <span id="people-event-count">0</span></span></div>
+            <div class="section" style="margin-top:12px"><div id="people-list"></div></div>
+          </section>
+
+          <section class="page" id="page-loops">
+            <h1 class="md-title">open-loops.txt</h1>
+            <div class="md-sub">말하다가 남긴 할 일·목표·기억을 EXECUTE / PARK / DELETE로 정리합니다.</div>
+            <div class="statline"><span class="k">pending</span> = <span class="v" id="loop-count">0</span> <span class="hint">// 실제 삭제는 확인 후 soft-delete</span></div>
+            <div class="section" style="margin-top:12px"><div id="loop-list"></div></div>
+          </section>
+        </div>
+      </div>
+    </main>
+
+    <footer class="statusbar">
+      <span>$(mori)</span><span id="mode-label">MODE:NORMAL</span><span id="status-work">WORK:0</span><span id="status-events">EVENTS:0</span><span id="status-loops">LOOPS:0</span><span id="status-questions">QBANK:0</span><span id="status-gcal">GCAL:OFF</span><span id="status-brain">BRAIN:LOCAL</span><div class="spacer"></div><span class="status-muted">SUPABASE</span><span id="status-date"></span>
+    </footer>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL='https://clokopqfsjlcxchlruvq.supabase.co';
+const SUPABASE_KEY='sb_publishable_xfmRiqEE28TIlBXefAGipA_Kiwk2fS7';
+const MORI_URL='https://narae-lab.github.io/mori/';
+const GOOGLE_CALENDAR_SCOPE='https://www.googleapis.com/auth/calendar.events';
+const supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+
+let currentUser=null,brief=null,dailyState=null,weekStates=[],registry=[],inboxItems=[],personalEvents=[],googleEvents=[];
+let people=[],peopleEvents=[],managerProfile=null,questionLibrary=[],chatHistory=[],toastTimer=null,currentPage='chat';
+let lastReferencedEvent=null,lastReferencedPerson=null,radarFilter='all',brainState={reachable:false,configured:false,model:null};
+const $=id=>document.getElementById(id);
+
+function localDateKey(d=new Date()){const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');return `${y}-${m}-${day}`}
+function dateDaysAgo(n){const d=new Date();d.setDate(d.getDate()-n);return localDateKey(d)}
+function dateDaysAhead(n){const d=new Date();d.setDate(d.getDate()+n);return localDateKey(d)}
+function addDays(base,n){const d=new Date(base);d.setDate(d.getDate()+n);return d}
+function mondayOfWeek(base){const d=new Date(base);const day=d.getDay();const diff=day===0?-6:1-day;d.setDate(d.getDate()+diff);d.setHours(0,0,0,0);return d}
+function esc(v=''){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+function toast(msg){const el=$('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),1700)}
+function setLoading(v){$('app-root').classList.toggle('loading',v)}
+function empty(text='없음'){return `<div class="empty">// ${esc(text)}</div>`}
+function isPersonal(x){return (x.category||'').startsWith('Personal/')}
+function isCompany(x){return !isPersonal(x)}
+function avg(nums){const a=nums.filter(v=>v!==null&&v!==undefined&&v!=='').map(Number).filter(Number.isFinite);return a.length?Math.round((a.reduce((s,v)=>s+v,0)/a.length)*10)/10:null}
+function daysUntil(dateStr){const a=new Date(localDateKey()+'T00:00:00'),b=new Date(dateStr+'T00:00:00');return Math.round((b-a)/86400000)}
+function koDateLabel(dateStr){const d=new Date(dateStr+'T00:00:00'),wd=['일','월','화','수','목','금','토'][d.getDay()];return`${d.getMonth()+1}/${d.getDate()}(${wd})`}
+function nextWeekRange(){const today=new Date(),mon=mondayOfWeek(today),from=addDays(mon,7),to=addDays(from,6);return{from:localDateKey(from),to:localDateKey(to),label:`${koDateLabel(localDateKey(from))}~${koDateLabel(localDateKey(to))}`}}
+function thisWeekRange(){const mon=mondayOfWeek(new Date()),to=addDays(mon,6);return{from:localDateKey(mon),to:localDateKey(to)}}
+function overlapsWindow(item,from,to){const a=item.event_date||item.window_start,b=item.event_date||item.window_end||item.window_start;return !!a&&!!b&&a<=to&&b>=from}
+function eventDateKey(x){return x.event_date||x.start_date||x.date||''}
+
+async function persistChat(role,content,intent=null,metadata={}){
+  if(!currentUser||!content)return;
+  try{await supabaseClient.from('lara_manager_chat_log').insert({user_id:currentUser.id,role,content,intent,metadata})}catch(e){console.warn('chat log',e)}
+}
+function addLog(text,type='system',persist=false,intent=null,metadata={}){
+  const div=document.createElement('div');div.className=`log ${type}`;
+  div.innerHTML=`<div class="who">${type==='user'?'YOU':'MORI'}</div><div class="text"></div>`;
+  div.querySelector('.text').textContent=text;$('chat-body').appendChild(div);div.scrollIntoView({block:'nearest'});
+  if(persist)persistChat(type==='user'?'user':'assistant',text,intent,metadata);
+}
+function reply(text,intent=null,metadata={}){addLog(text,'system',true,intent,metadata)}
+
+function cadenceLabel(x){
+  if(x.cadence_type==='annual')return'annual';if(x.cadence_type==='quarterly')return'quarterly';if(x.cadence_type==='monthly')return'monthly';
+  const c=x.cadence||{};if(Array.isArray(c.months))return`${c.months.join('·')}월`;if(c.frequency==='weekly')return'weekly';if(c.frequency==='monthly_review')return'monthly review';if(c.target_sessions)return`주 ${c.target_sessions}회`;return'event / watch';
+}
+function cadenceMonthHint(x){const c=x.cadence||{};if(Array.isArray(c.months))return c.months.join('·')+'월';if(c.month)return c.month+'월';return cadenceLabel(x)}
+function sourceBadge(src){if(src==='google_calendar')return'<span class="source-badge google">GOOGLE</span>';if(src==='people')return'<span class="source-badge people">PEOPLE</span>';return'<span class="source-badge mori">MORI</span>'}
+
+function getGoogleToken(){return sessionStorage.getItem('mori_google_provider_token')||''}
+function setGoogleToken(token){if(token)sessionStorage.setItem('mori_google_provider_token',token)}
+function calendarConnected(){return !!getGoogleToken()}
+function updateCalendarStatus(){
+  const on=calendarConnected();
+  $('gcal-label').textContent=on?'gcal: connected':'gcal: disconnected';
+  $('status-gcal').textContent=on?'GCAL:ON':'GCAL:OFF';
+  $('calendar-status-text').textContent=on?'connected · Google Calendar sync active':'disconnected · MORI 내부 일정만 사용';
+  $('calendar-status-text').className=on?'status-good':'status-off';
+  for(const id of ['gcal-connect-btn','calendar-connect-main']){const b=$(id);if(b){b.textContent=on?'Google Calendar 다시 연결':'Google Calendar 연결';b.classList.toggle('connected',on)}}
+}
+async function connectGoogleCalendar(){
+  $('login-error').textContent='';
+  const {error}=await supabaseClient.auth.signInWithOAuth({
+    provider:'google',
+    options:{
+      redirectTo:MORI_URL,
+      scopes:GOOGLE_CALENDAR_SCOPE,
+      queryParams:{access_type:'offline',prompt:'consent',include_granted_scopes:'true'}
+    }
+  });
+  if(error){toast('Google Calendar 연결 실패');console.error(error)}
+}
+async function syncGoogleCalendar(){
+  const token=getGoogleToken();if(!token){googleEvents=[];updateCalendarStatus();return}
+  try{
+    const timeMin=new Date();timeMin.setHours(0,0,0,0);
+    const timeMax=new Date();timeMax.setDate(timeMax.getDate()+180);timeMax.setHours(23,59,59,999);
+    const url=`https://www.googleapis.com/calendar/v3/calendars/primary/events?singleEvents=true&orderBy=startTime&maxResults=250&timeMin=${encodeURIComponent(timeMin.toISOString())}&timeMax=${encodeURIComponent(timeMax.toISOString())}`;
+    const res=await fetch(url,{headers:{Authorization:`Bearer ${token}`}});
+    if(res.status===401||res.status===403){googleEvents=[];sessionStorage.removeItem('mori_google_provider_token');updateCalendarStatus();throw new Error('Google Calendar 권한이 만료되었거나 API 권한이 없습니다.')}
+    if(!res.ok)throw new Error(`Google Calendar API ${res.status}`);
+    const data=await res.json();
+    googleEvents=(data.items||[]).filter(x=>x.status!=='cancelled').map(x=>{
+      const allDay=!!x.start?.date;const startVal=x.start?.date||x.start?.dateTime||'';
+      const d=allDay?startVal:localDateKey(new Date(startVal));
+      const time=allDay?null:String(new Date(startVal).toTimeString().slice(0,8));
+      return{id:`g:${x.id}`,google_event_id:x.id,title:x.summary||'(제목 없음)',event_date:d,start_time:time,all_day:allDay,category:'personal',status:'scheduled',source:'google_calendar',metadata:{htmlLink:x.htmlLink||'',raw:x}};
+    });
+    updateCalendarStatus();
+    await syncPendingEventsToGoogle();
+  }catch(e){console.warn(e);toast(e.message||'Google Calendar sync error')}
+}
+async function createGoogleCalendarEvent(ev){
+  const token=getGoogleToken();if(!token)return null;
+  const allDay=!ev.start_time;
+  const body={summary:ev.title,description:'MORI에서 생성'};
+  if(allDay){
+    body.start={date:ev.event_date};
+    body.end={date:localDateKey(addDays(new Date(ev.event_date+'T00:00:00'),1))};
+  }else{
+    const start=`${ev.event_date}T${ev.start_time.slice(0,5)}:00+09:00`;
+    const endDate=new Date(start);endDate.setHours(endDate.getHours()+1);
+    body.start={dateTime:start,timeZone:'Asia/Seoul'};
+    body.end={dateTime:endDate.toISOString(),timeZone:'Asia/Seoul'};
+  }
+  const res=await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events',{
+    method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify(body)
+  });
+  if(!res.ok)throw new Error(`Google Calendar 저장 실패 (${res.status})`);
+  return await res.json();
+}
+async function syncPendingEventsToGoogle(){
+  if(!calendarConnected())return;
+  const pending=personalEvents.filter(x=>x?.metadata?.google_sync==='pending'&&!x?.metadata?.google_event_id);
+  for(const ev of pending){
+    try{
+      const g=await createGoogleCalendarEvent(ev);
+      const metadata={...(ev.metadata||{}),google_sync:'synced',google_event_id:g.id};
+      await supabaseClient.from('lara_personal_events').update({metadata,updated_at:new Date().toISOString()}).eq('id',ev.id);
+      ev.metadata=metadata;
+    }catch(e){console.warn('pending sync',e)}
+  }
+  if(pending.length)await syncGoogleCalendarReadOnlyRefresh();
+}
+async function syncGoogleCalendarReadOnlyRefresh(){
+  const token=getGoogleToken();if(!token)return;
+  try{
+    const timeMin=new Date();timeMin.setHours(0,0,0,0);const timeMax=new Date();timeMax.setDate(timeMax.getDate()+180);
+    const url=`https://www.googleapis.com/calendar/v3/calendars/primary/events?singleEvents=true&orderBy=startTime&maxResults=250&timeMin=${encodeURIComponent(timeMin.toISOString())}&timeMax=${encodeURIComponent(timeMax.toISOString())}`;
+    const res=await fetch(url,{headers:{Authorization:`Bearer ${token}`}});if(!res.ok)return;
+    const data=await res.json();googleEvents=(data.items||[]).filter(x=>x.status!=='cancelled').map(x=>{const allDay=!!x.start?.date,startVal=x.start?.date||x.start?.dateTime||'',d=allDay?startVal:localDateKey(new Date(startVal)),time=allDay?null:String(new Date(startVal).toTimeString().slice(0,8));return{id:`g:${x.id}`,google_event_id:x.id,title:x.summary||'(제목 없음)',event_date:d,start_time:time,all_day:allDay,category:'personal',status:'scheduled',source:'google_calendar',metadata:{htmlLink:x.htmlLink||''}}});
+  }catch(e){console.warn(e)}
+}
+function mergedEvents(){
+  const googleIds=new Set(googleEvents.map(x=>x.google_event_id));
+  const locals=personalEvents.filter(x=>!x?.metadata?.google_event_id||!googleIds.has(x.metadata.google_event_id));
+  return [...googleEvents,...locals].sort((a,b)=>(a.event_date+(a.start_time||'')).localeCompare(b.event_date+(b.start_time||'')));
+}
+
+async function showApp(user){
+  currentUser=user;$('login-overlay').style.display='none';$('app-root').style.display='block';
+  $('user-label').textContent=user.email?user.email.replace(/(.{2}).+(@.+)/,'$1•••$2'):'authenticated';
+  const {data:{session}}=await supabaseClient.auth.getSession();if(session?.provider_token)setGoogleToken(session.provider_token);
+  updateCalendarStatus();await probeBrain();await loadAll();
+}
+function showLogin(){currentUser=null;$('login-overlay').style.display='flex';$('app-root').style.display='none'}
+
+async function loadAll(){
+  setLoading(true);$('sync-label').textContent='sync: running';
+  try{
+    const today=localDateKey();
+    const [briefRes,stateRes,weekRes,regRes,inboxRes,eventRes,peopleRes,peopleEventRes,profileRes,qRes,chatRes]=await Promise.all([
+      supabaseClient.rpc('lara_manager_work_brief',{p_date:today}),
+      supabaseClient.from('lara_daily_state').select('*').eq('date',today).maybeSingle(),
+      supabaseClient.from('lara_daily_state').select('*').gte('date',dateDaysAgo(6)).lte('date',today).order('date'),
+      supabaseClient.from('lara_work_registry').select('*').eq('active',true).order('priority'),
+      supabaseClient.from('lara_manager_inbox').select('id,raw_text,item_type,extracted_title,status,metadata,created_at').eq('status','inbox').order('created_at',{ascending:false}),
+      supabaseClient.from('lara_personal_events').select('*').eq('status','scheduled').gte('event_date',today).lte('event_date',dateDaysAhead(180)).order('event_date').order('start_time'),
+      supabaseClient.from('lara_people').select('*').eq('active',true).order('display_name'),
+      supabaseClient.from('lara_people_events').select('*').eq('status','open').or(`event_date.gte.${today},window_end.gte.${today}`).order('event_date',{ascending:true,nullsFirst:false}),
+      supabaseClient.from('lara_manager_profile').select('*').maybeSingle(),
+      supabaseClient.from('lara_manager_questions').select('intent,example,weight').eq('active',true),
+      supabaseClient.from('lara_manager_chat_log').select('role,content,intent,metadata,created_at').order('created_at',{ascending:false}).limit(30)
+    ]);
+    [briefRes,stateRes,weekRes,regRes,inboxRes,eventRes,peopleRes,peopleEventRes,profileRes,qRes,chatRes].forEach(r=>{if(r.error)throw r.error});
+    brief=briefRes.data||{};dailyState=stateRes.data||null;weekStates=weekRes.data||[];registry=regRes.data||[];
+    inboxItems=inboxRes.data||[];personalEvents=eventRes.data||[];people=peopleRes.data||[];peopleEvents=peopleEventRes.data||[];
+    managerProfile=profileRes.data||null;questionLibrary=qRes.data||[];chatHistory=(chatRes.data||[]).reverse();
+    if(calendarConnected())await syncGoogleCalendar();
+    renderAll();renderRecentChat();$('sync-label').textContent='sync: ok';toast('sync complete');
+  }catch(e){console.error(e);$('brief-line').textContent='데이터 로드 오류';$('sync-label').textContent='sync: error';toast('데이터 불러오기 오류')}
+  finally{setLoading(false)}
+}
+function renderRecentChat(){
+  const body=$('chat-body');if(body.dataset.historyLoaded==='1')return;
+  const init=body.querySelector('.log.system');const keep=init?init.outerHTML:'';
+  const recent=chatHistory.slice(-12);body.innerHTML=keep;
+  recent.forEach(x=>addLog(x.content,x.role==='user'?'user':'system',false));
+  body.dataset.historyLoaded='1';
+}
+
+function renderAll(){renderBrief();renderRadar();renderCalendar();renderRhythm();renderWeekly();renderPeople();renderLoops();renderStatus()}
+function renderBrief(){
+  const s=brief?.schedule||{},r=brief?.registry||{},f=brief?.flags||{},ev=mergedEvents();
+  const today=(s.today_pending||[]).length+(s.routines_due||[]).length,windows=(r.windows_now||[]).length,high=f.high_overdue_count||0;
+  const personalToday=ev.filter(x=>x.event_date===localDateKey()).length;
+  const peopleNow=peopleEvents.filter(x=>overlapsWindow(x,localDateKey(),localDateKey())).length;
+  let line='급한 리마인드 없음 · 일정/사람/Open Loop까지 함께 보고 있습니다';
+  if(high>0)line=`중요 미완료 ${high}건 정리 필요`;
+  else if(personalToday||peopleNow)line=`오늘 개인 일정 ${personalToday}건 · 사람 이벤트 ${peopleNow}건 · 회사 일정 ${today}건`;
+  else if(today&&windows)line=`회사 일정 ${today}건 · 준비 시기 업무 ${windows}건`;
+  else if(today)line=`회사 일정 ${today}건 · 세부 실행은 기존 업무 페이지`;
+  else if(windows)line=`미리 준비할 시기 업무 ${windows}건 감지`;
+  $('brief-line').textContent=line;
+}
+function fmtEventDate(x){const d=new Date(x.event_date+'T00:00:00'),wd=['일','월','화','수','목','금','토'][d.getDay()],time=x.start_time?x.start_time.slice(0,5):'시간 미정';return `${d.getMonth()+1}/${d.getDate()}(${wd}) ${time}`}
+function peopleEventWhen(x){
+  if(x.event_date)return koDateLabel(x.event_date);
+  if(x.window_start&&x.window_end)return `${koDateLabel(x.window_start)}~${koDateLabel(x.window_end)}`;
+  return '시기 미정';
+}
+function radarRows(){
+  const s=brief?.schedule||{},r=brief?.registry||{},rows=[],ev=mergedEvents();
+  ev.filter(x=>daysUntil(x.event_date)>=0&&daysUntil(x.event_date)<=14).slice(0,8).forEach(x=>{const d=daysUntil(x.event_date);rows.push({kind:'personal',when:d===0?'TODAY':d===1?'D-1':`D-${d}`,title:x.title,meta:`${fmtEventDate(x)} · ${x.source||'mori'}`})});
+  peopleEvents.filter(x=>overlapsWindow(x,localDateKey(),dateDaysAhead(14))).slice(0,8).forEach(x=>rows.push({kind:'people',when:'PEOPLE',title:x.title,meta:`${x.person_name} · ${peopleEventWhen(x)}`}));
+  (r.windows_now||[]).slice(0,8).forEach(x=>rows.push({kind:'company',when:x.window_status==='WATCH_WINDOW'?'WATCH':x.window_status==='PREP_WINDOW'?'PREP':'NOW',title:x.title,meta:x.critical?'critical':'work rhythm'}));
+  (r.upcoming_7||[]).slice(0,8).forEach(x=>rows.push({kind:'company',when:'≤7D',title:x.title,meta:x.category||'work'}));
+  if(!(r.upcoming_7||[]).length)(s.upcoming_7||[]).slice(0,8).forEach(x=>rows.push({kind:'company',when:'≤7D',title:x.title,meta:'schedule'}));
+  return rows;
+}
+function renderRadar(){
+  const rows=radarRows();
+  const counts={all:rows.length,company:rows.filter(x=>x.kind==='company').length,personal:rows.filter(x=>x.kind==='personal').length,people:rows.filter(x=>x.kind==='people').length};
+  for(const k of Object.keys(counts)){const el=$(`radar-count-${k}`);if(el)el.textContent=counts[k]}
+  const visible=radarFilter==='all'?rows:rows.filter(x=>x.kind===radarFilter);
+  $('radar-list').innerHTML=visible.length?visible.slice(0,12).map(x=>`<div class="radar-row"><div class="when">${esc(x.when)}</div><div><div class="row-title">${esc(x.title)}</div><div class="row-meta">${esc(x.meta)}</div></div><div></div></div>`).join(''):empty(`${radarFilter==='all'?'전체':radarFilter==='company'?'회사':radarFilter==='personal'?'개인':'사람'} 항목 없음`);
+  document.querySelectorAll('[data-radar]').forEach(b=>b.classList.toggle('active',b.dataset.radar===radarFilter));
+}
+function renderCalendar(){
+  const events=mergedEvents();$('event-count').textContent=events.length;$('status-events').textContent=`EVENTS:${events.length}`;
+  if(!events.length){$('event-list').innerHTML=empty('예정된 개인 일정 없음');return}
+  $('event-list').innerHTML=events.map(x=>`<div class="event-row"><div class="event-date">${esc(fmtEventDate(x))}</div><div><div class="row-title">${esc(x.title)} ${sourceBadge(x.source)}</div><div class="row-meta">${esc(x.category||'personal')}</div></div><div class="event-actions">${x.source==='google_calendar'?'':`<button class="mini-btn" data-event-done="${esc(x.id)}">DONE</button><button class="mini-btn danger" data-event-cancel="${esc(x.id)}">CANCEL</button>`}</div></div>`).join('');
+  document.querySelectorAll('[data-event-done]').forEach(b=>b.addEventListener('click',()=>setEventStatus(b.dataset.eventDone,'done')));
+  document.querySelectorAll('[data-event-cancel]').forEach(b=>b.addEventListener('click',()=>setEventStatus(b.dataset.eventCancel,'cancelled')));
+}
+async function setEventStatus(id,status){
+  const item=personalEvents.find(x=>x.id===id);if(!item)return;
+  if(status==='cancelled'&&!confirm(`이 일정을 취소 처리할까요?\n\n${item.title}`))return;
+  const {error}=await supabaseClient.from('lara_personal_events').update({status,updated_at:new Date().toISOString()}).eq('id',id);
+  if(error){toast('event update error');return}
+  personalEvents=personalEvents.filter(x=>x.id!==id);renderAll();toast(status);
+}
+function rhythmRows(items){return items.map(x=>`<div class="rhythm-row"><div class="json-value">${esc(cadenceMonthHint(x))}</div><div><div class="row-title">${esc(x.title)}</div><div class="row-meta">${esc(x.notes||x.category||'')}</div></div></div>`).join('')}
+function renderRhythm(){
+  const company=registry.filter(isCompany),annual=company.filter(x=>x.cadence_type==='annual'),quarterly=company.filter(x=>x.cadence_type==='quarterly'),monthly=company.filter(x=>x.cadence_type==='monthly'||(x.cadence_type==='custom'&&Array.isArray(x.cadence?.months)));
+  $('work-rhythm').innerHTML=`<div class="rhythm-block"><div class="rhythm-label"><span class="json-key">"annual"</span>: [</div>${annual.length?rhythmRows(annual):empty()}<div class="rhythm-label">]</div></div><div class="rhythm-block"><div class="rhythm-label"><span class="json-key">"quarterly"</span>: [</div>${quarterly.length?rhythmRows(quarterly):empty()}<div class="rhythm-label">]</div></div><div class="rhythm-block"><div class="rhythm-label"><span class="json-key">"monthly"</span>: [</div>${monthly.length?rhythmRows(monthly):empty()}<div class="rhythm-label">]</div></div>`;
+  const personal=registry.filter(isPersonal);$('personal-rhythm').innerHTML=personal.length?rhythmRows(personal):empty('등록된 개인 반복관리 없음');
+}
+function renderPeople(){
+  $('people-count').textContent=people.length;$('people-event-count').textContent=peopleEvents.length;
+  if(!people.length){$('people-list').innerHTML=empty('등록된 사람 없음');return}
+  $('people-list').innerHTML=people.map(p=>{
+    const ev=peopleEvents.filter(x=>x.person_id===p.id||x.person_name===p.display_name);
+    return `<div class="people-row"><div class="person-name">@${esc(p.display_name)}</div><div><div class="row-title">${esc(p.relation_type||'other')}</div><div class="person-context">${esc(p.context||'')}</div>${ev.map(e=>`<div class="row-meta">↳ ${esc(peopleEventWhen(e))} · ${esc(e.title)}</div>`).join('')}</div><div>${ev.length?`<span class="source-badge people">${ev.length} OPEN</span>`:''}</div></div>`;
+  }).join('');
+}
+function weeklyMetrics(){return{checks:weekStates.length,sleep:avg(weekStates.map(x=>x.sleep_hours)),energy:avg(weekStates.flatMap(x=>[x.energy_am,x.energy_pm])),stress:avg(weekStates.flatMap(x=>[x.stress_am,x.stress_pm])),control:avg(weekStates.map(x=>x.control)),room:avg(weekStates.map(x=>x.room))}}
+function weeklyAdvice(m){
+  const windows=(brief?.registry?.windows_now||[]).length,loops=inboxItems.length,nextEvents=mergedEvents().filter(x=>daysUntil(x.event_date)>=0&&daysUntil(x.event_date)<=7).length,peopleNext=peopleEvents.filter(x=>overlapsWindow(x,localDateKey(),dateDaysAhead(7))).length,parts=[];
+  if(nextEvents)parts.push(`개인 일정 ${nextEvents}건이 7일 안에 있습니다.`);
+  if(peopleNext)parts.push(`사람 관련 약속/챙길 일 ${peopleNext}건이 있습니다.`);
+  if(windows)parts.push(`회사 준비/감시 시기 업무 ${windows}건을 먼저 확인하세요.`);
+  if(loops>=6)parts.push(`Open Loop ${loops}건 — EXECUTE를 1~2개로 제한하고 나머지는 PARK 검토.`);
+  if(m.control!==null&&m.control<3)parts.push('최근 Control이 낮아 새 계획 추가보다 기존 약속 정리가 우선입니다.');
+  if(m.stress!==null&&m.stress>=4)parts.push('최근 Stress가 높은 편이라 일정 충돌부터 확인하는 게 좋습니다.');
+  if(m.sleep!==null&&m.sleep<6.5)parts.push(`최근 수면 평균 ${m.sleep}h — 일정 밀도 판단에 반영합니다.`);
+  if(!parts.length)parts.push('특별한 경고 신호는 없습니다. 기존 리듬을 유지하면서 다가오는 일만 선제 확인하면 됩니다.');
+  return parts.join('\n');
+}
+function renderWeekly(){
+  const m=weeklyMetrics(),s=brief?.schedule||{},r=brief?.registry||{},events=mergedEvents();
+  $('weekly-range').textContent=`${dateDaysAgo(6)} ~ ${localDateKey()} · 기록 ${m.checks}/7일`;
+  $('weekly-content').innerHTML=`<div class="section"><div class="section-head"><h2>EXECUTION</h2></div><div class="statline"><span class="k">company.today</span> = <span class="v">${(s.today_pending||[]).length+(s.routines_due||[]).length}</span></div><div class="statline"><span class="k">company.next7</span> = <span class="v">${(r.upcoming_7||[]).length+(s.upcoming_7||[]).length}</span></div><div class="statline"><span class="k">prep.window</span> = <span class="v">${(r.windows_now||[]).length}</span></div><div class="statline"><span class="k">personal.next7</span> = <span class="v">${events.filter(x=>daysUntil(x.event_date)>=0&&daysUntil(x.event_date)<=7).length}</span></div><div class="statline"><span class="k">people.next7</span> = <span class="v">${peopleEvents.filter(x=>overlapsWindow(x,localDateKey(),dateDaysAhead(7))).length}</span></div><div class="statline"><span class="k">open_loops</span> = <span class="v">${inboxItems.length}</span></div></div><div class="section"><div class="section-head"><h2>CAPACITY</h2></div><div class="statline"><span class="k">sleep.avg</span> = <span class="v">${m.sleep??'n/a'}${m.sleep!==null?'h':''}</span></div><div class="statline"><span class="k">energy.avg</span> = <span class="v">${m.energy??'n/a'}</span></div><div class="statline"><span class="k">stress.avg</span> = <span class="v">${m.stress??'n/a'}</span></div><div class="statline"><span class="k">control.avg</span> = <span class="v">${m.control??'n/a'}</span></div><div class="statline"><span class="k">room.avg</span> = <span class="v">${m.room??'n/a'}</span></div></div>`;
+  $('weekly-advice').textContent='MORI // '+weeklyAdvice(m);
+}
+function loopState(x){return x?.metadata?.open_loop_state||'new'}
+function renderLoops(){
+  $('loop-count').textContent=inboxItems.length;$('status-loops').textContent=`LOOPS:${inboxItems.length}`;
+  if(!inboxItems.length){$('loop-list').innerHTML=empty('열린 고리 없음');return}
+  const order={execute:0,new:1,park:2},items=[...inboxItems].sort((a,b)=>(order[loopState(a)]??1)-(order[loopState(b)]??1));
+  $('loop-list').innerHTML=items.map(x=>{const st=loopState(x),label=st==='execute'?'EXECUTE':st==='park'?'PARK':'NEW';return `<div class="loop-row"><div class="loop-state state-${esc(st)}">[${label}]</div><div><div class="row-title">${esc(x.extracted_title||x.raw_text||'기억')}</div><div class="row-meta">${esc(x.item_type||'note')} · ${esc((x.created_at||'').slice(0,10))}</div></div><div class="loop-actions"><button class="mini-btn" data-loop="${esc(x.id)}" data-state="execute">EXEC</button><button class="mini-btn" data-loop="${esc(x.id)}" data-state="park">PARK</button><button class="mini-btn danger" data-delete-loop="${esc(x.id)}">DEL</button></div></div>`}).join('');
+  document.querySelectorAll('[data-loop]').forEach(b=>b.addEventListener('click',()=>setLoopState(b.dataset.loop,b.dataset.state)));
+  document.querySelectorAll('[data-delete-loop]').forEach(b=>b.addEventListener('click',()=>softDeleteLoop(b.dataset.deleteLoop)));
+}
+async function setLoopState(id,state){const item=inboxItems.find(x=>x.id===id);if(!item)return;const metadata={...(item.metadata||{}),open_loop_state:state,open_loop_updated_at:new Date().toISOString()};const {error}=await supabaseClient.from('lara_manager_inbox').update({metadata}).eq('id',id);if(error){toast('update error');return}item.metadata=metadata;renderLoops();renderStatus();toast(state.toUpperCase())}
+async function softDeleteLoop(id){const item=inboxItems.find(x=>x.id===id);if(!item)return;if(!confirm(`이 열린 고리를 정리대상으로 이동할까요?\n\n${item.extracted_title||item.raw_text||''}`))return;const {error}=await supabaseClient.from('lara_manager_inbox').update({status:'deleted',processed_at:new Date().toISOString(),metadata:{...(item.metadata||{}),open_loop_state:'deleted'}}).eq('id',id);if(error){toast('delete error');return}inboxItems=inboxItems.filter(x=>x.id!==id);renderAll();toast('soft-deleted')}
+
+function seasonMode(){
+  const titles=(brief?.registry?.windows_now||[]).map(x=>x.title).join(' '),today=((brief?.schedule?.today_pending||[]).length+(brief?.schedule?.routines_due||[]).length);
+  if(/명절|설 |추석|선물/.test(titles))return'HOLIDAY_PREP';if(/연말|연차충당|차년도/.test(titles))return'YEAR_END';if(/급여|근태/.test(titles)&&today)return'PAYROLL_CLOSE';if((brief?.flags?.high_overdue_count||0)>0)return'RECOVERY';if((brief?.registry?.windows_now||[]).length)return'PREP';return'NORMAL';
+}
+function renderStatus(){
+  const s=brief?.schedule||{};$('mode-label').textContent=`MODE:${seasonMode()}`;$('status-work').textContent=`WORK:${(s.today_pending||[]).length+(s.routines_due||[]).length}`;$('status-events').textContent=`EVENTS:${mergedEvents().length}`;$('status-loops').textContent=`LOOPS:${inboxItems.length}`;$('status-questions').textContent=`QBANK:${questionLibrary.length}`;$('status-date').textContent=localDateKey();updateCalendarStatus();updateBrainStatus();
+}
+function parseSleep(v){v=String(v).trim();if(/^\d{1,2}:\d{2}$/.test(v)){const [h,m]=v.split(':').map(Number);return Math.round((h+m/60)*100)/100}const n=Number(v);return Number.isFinite(n)?n:null}
+async function saveDaily(patch){const payload={user_id:currentUser.id,date:localDateKey(),...(dailyState||{}),...patch,updated_at:new Date().toISOString()};delete payload.created_at;const {data,error}=await supabaseClient.from('lara_daily_state').upsert(payload,{onConflict:'user_id,date'}).select().single();if(error)throw error;dailyState=data;const idx=weekStates.findIndex(x=>x.date===payload.date);if(idx>=0)weekStates[idx]=data;else weekStates.push(data);renderWeekly()}
+
+function companyItemsForRange(from,to){
+  const r=brief?.registry||{},s=brief?.schedule||{},all=[...(r.upcoming_7||[]),...(s.upcoming_7||[])];
+  return all.filter(x=>!x.date||(x.date>=from&&x.date<=to));
+}
+function peopleItemsForRange(from,to){return peopleEvents.filter(x=>overlapsWindow(x,from,to))}
+function personalItemsForRange(from,to){return mergedEvents().filter(x=>x.event_date>=from&&x.event_date<=to)}
+function formatSection(title,items,mapper){
+  return `${title}\n${items.length?items.map(x=>'• '+mapper(x)).join('\n'):'• 없음'}`;
+}
+function todayReply(){
+  const s=brief?.schedule||{},r=brief?.registry||{},today=[...(s.today_pending||[]),...(s.routines_due||[])],windows=r.windows_now||[],events=personalItemsForRange(localDateKey(),localDateKey()),pe=peopleItemsForRange(localDateKey(),localDateKey()),parts=[];
+  parts.push(formatSection('[개인]',events,x=>`${x.title} · ${x.start_time?x.start_time.slice(0,5):'시간 미정'}`));
+  parts.push(formatSection('[사람]',pe,x=>`${x.person_name} · ${x.title}`));
+  parts.push(formatSection('[회사]',today,x=>x.title));
+  if(windows.length)parts.push(formatSection('[미리 준비]',windows.slice(0,5),x=>x.title));
+  const exec=inboxItems.filter(x=>loopState(x)==='execute');if(exec.length)parts.push(formatSection('[Open Loop]',exec.slice(0,4),x=>x.extracted_title||x.raw_text));
+  return parts.join('\n\n');
+}
+function nextWeekReply(mode='all'){
+  const range=nextWeekRange(),company=companyItemsForRange(range.from,range.to),personal=personalItemsForRange(range.from,range.to),pe=peopleItemsForRange(range.from,range.to),windows=brief?.registry?.windows_now||[],parts=[`다음주 ${range.label} 기준입니다.`];
+  if(mode!=='personal'){parts.push(formatSection('[회사]',[...company,...pe],x=>x.person_name?`${x.person_name} · ${x.title}`:`${x.date?koDateLabel(x.date)+' · ':''}${x.title}`))}
+  if(mode!=='company'){parts.push(formatSection('[개인]',personal,x=>`${fmtEventDate(x)} · ${x.title}`))}
+  if(mode==='all'&&windows.length)parts.push(formatSection('[미리 준비]',windows.slice(0,5),x=>x.title));
+  return parts.join('\n\n');
+}
+function tomorrowReply(days=1){
+  const date=dateDaysAhead(days),company=companyItemsForRange(date,date),personal=personalItemsForRange(date,date),pe=peopleItemsForRange(date,date),label=days===1?'내일':days===2?'모레':`${days}일 안`;
+  return `${label} 기준입니다.\n\n${formatSection('[회사]',[...company,...pe],x=>x.person_name?`${x.person_name} · ${x.title}`:x.title)}\n\n${formatSection('[개인]',personal,x=>`${fmtEventDate(x)} · ${x.title}`)}`;
+}
+function commuteReply(){
+  const today=localDateKey(),tomorrow=dateDaysAhead(1),now=new Date(),nowHHMM=now.toTimeString().slice(0,5);
+  const remaining=mergedEvents().filter(x=>x.event_date===today&&(!x.start_time||x.start_time.slice(0,5)>=nowHHMM));
+  const pe=peopleItemsForRange(today,tomorrow);
+  const errands=inboxItems.filter(x=>/사야|구매|들르|가져|픽업|전달|선물|답장|연락/.test((x.raw_text||'')+' '+(x.extracted_title||''))).slice(0,5);
+  const earlyTomorrow=mergedEvents().filter(x=>x.event_date===tomorrow&&x.start_time&&x.start_time.slice(0,5)<'10:00');
+  const parts=[];
+  parts.push(formatSection('[오늘 남은 일정]',remaining,x=>`${x.start_time?x.start_time.slice(0,5):'시간 미정'} · ${x.title}`));
+  parts.push(formatSection('[사람/약속]',pe,x=>`${x.person_name} · ${x.title}`));
+  parts.push(formatSection('[가는 길에 처리 후보]',errands,x=>x.extracted_title||x.raw_text));
+  if(earlyTomorrow.length)parts.push(formatSection('[내일 아침 대비]',earlyTomorrow,x=>`${x.start_time.slice(0,5)} · ${x.title}`));
+  if(!remaining.length&&!pe.length&&!errands.length&&!earlyTomorrow.length)return'지금 MORI가 기억한 기준으로는 집 가는 길에 꼭 처리해야 할 항목은 없습니다.';
+  return parts.join('\n\n');
+}
+function prepReply(){const arr=brief?.registry?.windows_now||[];return arr.length?formatSection('[미리 준비할 회사 리듬]',arr.slice(0,6),x=>x.title):'지금 별도 준비창이 열린 회사 업무는 없습니다.'}
+function personalReply(keyword){const arr=registry.filter(isPersonal).filter(x=>(x.title+' '+(x.notes||'')+' '+(x.category||'')).includes(keyword));return arr.length?`${keyword} 관련 MORI 리듬입니다.\n${arr.slice(0,6).map(x=>`• ${x.title} (${cadenceLabel(x)})`).join('\n')}`:`${keyword} 관련 등록 리듬은 아직 찾지 못했습니다.`}
+function peopleReply(text){
+  const names=people.filter(p=>text.includes(p.display_name));
+  if(names.length){const p=names[0],ev=peopleEvents.filter(x=>x.person_id===p.id||x.person_name===p.display_name),loops=inboxItems.filter(x=>(x.raw_text||'').includes(p.display_name)||(x.extracted_title||'').includes(p.display_name));lastReferencedPerson=p;return `${p.display_name} 관련 저장된 맥락입니다.\n• 관계: ${p.relation_type||'미분류'}\n• ${p.context||'추가 맥락 없음'}\n${ev.length?ev.map(x=>`• ${peopleEventWhen(x)} · ${x.title}`).join('\n'):'• 열린 사람 이벤트 없음'}${loops.length?'\n'+loops.slice(0,4).map(x=>`• Open Loop · ${x.extracted_title||x.raw_text}`).join('\n'):''}`}
+  const range=/다음\s*주/.test(text)?nextWeekRange():{from:localDateKey(),to:dateDaysAhead(14)},ev=peopleItemsForRange(range.from,range.to);
+  return ev.length?`사람 관련해서 챙길 일입니다.\n${ev.map(x=>`• ${peopleEventWhen(x)} · ${x.person_name} · ${x.title}`).join('\n')}`:'현재 열린 사람 이벤트는 없습니다.';
+}
+function monthlyReply(){
+  const now=new Date(),from=localDateKey(new Date(now.getFullYear(),now.getMonth(),1)),to=localDateKey(new Date(now.getFullYear(),now.getMonth()+1,0));
+  const personal=personalItemsForRange(from,to),pe=peopleItemsForRange(from,to),company=registry.filter(isCompany).filter(x=>x.cadence_type==='monthly'||(x.cadence?.month===now.getMonth()+1));
+  return `${now.getMonth()+1}월 기준입니다.\n\n${formatSection('[회사 리듬]',company.slice(0,10),x=>x.title)}\n\n${formatSection('[개인 일정]',personal,x=>`${fmtEventDate(x)} · ${x.title}`)}\n\n${formatSection('[사람]',pe,x=>`${x.person_name} · ${x.title}`)}\n\nOpen Loop ${inboxItems.length}건 · 이번 주 기록 ${weekStates.length}/7일`;
+}
+function managerMetaReply(){
+  const risks=[],windows=brief?.registry?.windows_now||[],events=mergedEvents().filter(x=>daysUntil(x.event_date)>=0&&daysUntil(x.event_date)<=7),pe=peopleItemsForRange(localDateKey(),dateDaysAhead(7));
+  if(windows.length)risks.push(`회사 준비창 ${windows.length}건`);
+  if(events.length)risks.push(`7일 내 개인 일정 ${events.length}건`);
+  if(pe.length)risks.push(`사람 관련 약속 ${pe.length}건`);
+  if(inboxItems.length>=5)risks.push(`Open Loop ${inboxItems.length}건`);
+  const m=weeklyMetrics();if(m.sleep!==null&&m.sleep<6.5)risks.push(`수면 평균 ${m.sleep}h`);
+  return risks.length?`지금 제가 먼저 보고 있는 포인트입니다.\n${risks.map(x=>'• '+x).join('\n')}\n\n급해지기 전에 일정 충돌과 준비 시기를 우선 알려드리겠습니다.`:'현재 데이터에서는 먼저 경고할 정도의 큰 누락 신호는 없습니다.';
+}
+
+function parseEventDate(text){
+  const now=new Date(),today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  let m=text.match(/\b(20\d{2})[.\-\/](\d{1,2})[.\-\/](\d{1,2})\b/);if(m)return{date:new Date(+m[1],+m[2]-1,+m[3]),source:'explicit'};
+  m=text.match(/(\d{1,2})월\s*(\d{1,2})일/);if(m){let d=new Date(today.getFullYear(),+m[1]-1,+m[2]);if(d<today&&!/지난|저번/.test(text))d.setFullYear(d.getFullYear()+1);return{date:d,source:'monthday'}}
+  if(/오늘/.test(text))return{date:today,source:'relative'};if(/모레/.test(text))return{date:addDays(today,2),source:'relative'};if(/내일/.test(text))return{date:addDays(today,1),source:'relative'};
+  const wdMap={일:0,월:1,화:2,수:3,목:4,금:5,토:6};
+  m=text.match(/(다음\s*주|이번\s*주)\s*([일월화수목금토])(?:요일)?/);if(m){const mon=mondayOfWeek(today),weekOffset=/다음/.test(m[1])?7:0,target=wdMap[m[2]],offset=target===0?6:target-1;return{date:addDays(mon,weekOffset+offset),source:'weekday'}}
+  m=text.match(/(?:^|\D)(\d{1,2})일(?:\D|$)/);if(m){let d=new Date(today.getFullYear(),today.getMonth(),+m[1]);if(d<today&&!/지난|저번/.test(text))d.setMonth(d.getMonth()+1);return{date:d,source:'day'}}
+  return null;
+}
+function parseEventTime(text){
+  let m=text.match(/(오전|오후)\s*(\d{1,2})시(?:\s*(\d{1,2})분)?/);if(m){let h=+m[2],min=+(m[3]||0);if(m[1]==='오후'&&h<12)h+=12;if(m[1]==='오전'&&h===12)h=0;return`${String(h).padStart(2,'0')}:${String(min).padStart(2,'0')}:00`}
+  m=text.match(/(?:^|\D)([01]?\d|2[0-3]):([0-5]\d)(?:\D|$)/);if(m)return`${String(+m[1]).padStart(2,'0')}:${m[2]}:00`;
+  m=text.match(/(?:^|\D)([01]?\d|2[0-3])시(?:\s*(\d{1,2})분)?/);if(m)return`${String(+m[1]).padStart(2,'0')}:${String(+(m[2]||0)).padStart(2,'0')}:00`;return null;
+}
+function looksLikeScheduleQuestion(text){return /\?|뭐\s*(있|야)|어떤\s*(일정|약속)|일정.*(보여|알려|확인)|다음\s*주.*(보여|알려|뭐)|언제/.test(text)}
+function looksLikeScheduleStatement(text){const pd=parseEventDate(text);if(!pd)return false;if(/일정에\s*(추가|등록)|기억해|캘린더에/.test(text))return true;if(looksLikeScheduleQuestion(text))return false;return /(예약|약속|일정|검진|병원|치과|미용|에스테틱|인터뷰|면접|모임|여행|출발|도착|상담|미팅|회의|수업|공연|행사|가기로|가요|있어요|있습니다|예정)/.test(text)}
+function cleanEventTitle(text){return text.replace(/\b20\d{2}[.\-\/]\d{1,2}[.\-\/]\d{1,2}\b/g,' ').replace(/\d{1,2}월\s*\d{1,2}일/g,' ').replace(/(다음\s*주|이번\s*주)\s*[일월화수목금토](?:요일)?(?:\s*\(\s*\d{1,2}일\s*\))?/g,' ').replace(/\(\s*\d{1,2}일\s*\)/g,' ').replace(/(?:오늘|내일|모레)/g,' ').replace(/(오전|오후)\s*\d{1,2}시(?:\s*\d{1,2}분)?/g,' ').replace(/\b([01]?\d|2[0-3]):[0-5]\d\b/g,' ').replace(/(?:^|\s)([01]?\d|2[0-3])시(?:\s*\d{1,2}분)?/g,' ').replace(/일정에\s*(추가|등록)해?(줘|주세요)?|기억해(줘|주세요)?|캘린더에\s*(추가|등록)해?(줘|주세요)?/g,' ').replace(/(?:이|가|은|는)?\s*(있어요|있습니다|예정이에요|예정입니다)\s*$/,' ').replace(/\s+/g,' ').trim()}
+async function savePersonalScheduleFromText(text){
+  const parsed=parseEventDate(text);if(!parsed)return null;const date=localDateKey(parsed.date),start=parseEventTime(text),title=cleanEventTitle(text)||'개인 일정';
+  const payload={user_id:currentUser.id,title,event_date:date,start_time:start,all_day:!start,category:'personal',status:'scheduled',source:'mori_chat',raw_text:text,remind_days_before:[7,1,0],metadata:{parser:'mori_v1.0',date_source:parsed.source,google_sync:calendarConnected()?'pending':'not_connected'}};
+  const {data,error}=await supabaseClient.from('lara_personal_events').insert(payload).select('*').single();if(error)throw error;
+  personalEvents.push(data);lastReferencedEvent=data;
+  let googleMsg='Google Calendar는 아직 연결되지 않아 MORI에만 저장했습니다.';
+  if(calendarConnected()){try{const g=await createGoogleCalendarEvent(data);data.metadata={...(data.metadata||{}),google_sync:'synced',google_event_id:g.id};await supabaseClient.from('lara_personal_events').update({metadata:data.metadata,updated_at:new Date().toISOString()}).eq('id',data.id);googleMsg='Google Calendar에도 동기화했습니다.';await syncGoogleCalendarReadOnlyRefresh()}catch(e){data.metadata={...(data.metadata||{}),google_sync:'pending'};googleMsg='MORI에는 저장했지만 Google Calendar 동기화는 실패했습니다. 연결 상태를 확인해주세요.'}}
+  renderAll();return{event:data,googleMsg};
+}
+function parsePeopleWindow(text){
+  if(/다음\s*주/.test(text))return nextWeekRange();
+  if(/이번\s*주/.test(text))return thisWeekRange();
+  if(/이번\s*달/.test(text)){const d=new Date();return{from:localDateKey(new Date(d.getFullYear(),d.getMonth(),1)),to:localDateKey(new Date(d.getFullYear(),d.getMonth()+1,0))}}
+  const pd=parseEventDate(text);if(pd){const d=localDateKey(pd.date);return{from:d,to:d,event_date:d}}
+  return null;
+}
+function extractPersonName(text){
+  const known=people.find(p=>text.includes(p.display_name));if(known)return known.display_name;
+  const m=text.match(/([가-힣]{1,5}(?:과장님|대리님|팀장님|파트장님|부장님|차장님|매니저님|사원님))/);return m?m[1]:null;
+}
+function looksLikePeopleEvent(text){return !!extractPersonName(text)&&/(선물|생일|경조|챙겨|챙길|주기로|주기로|전달|답장|연락|복귀|휴가|약속|감사|커피|식사|만나)/.test(text)&&!/\?|뭐\s*(있|야)|관련.*(알려|보여)/.test(text)}
+async function savePeopleEventFromText(text){
+  const personName=extractPersonName(text);if(!personName)return null;
+  let person=people.find(p=>p.display_name===personName);
+  if(!person){const {data,error}=await supabaseClient.from('lara_people').upsert({user_id:currentUser.id,display_name:personName,relation_type:/(과장님|대리님|팀장님|파트장님|부장님|차장님|매니저님|사원님)/.test(personName)?'coworker':'other',context:'MORI 대화에서 자동 등록',metadata:{source:'mori_chat'}},{onConflict:'user_id,display_name'}).select('*').single();if(error)throw error;person=data;people.push(person)}
+  const w=parsePeopleWindow(text),eventDate=w?.event_date||null,title=text.replace(/기억해(줘|주세요)?|챙겨(줘|주세요)?/g,'').replace(/\s+/g,' ').trim();
+  const payload={user_id:currentUser.id,person_id:person.id,person_name:person.display_name,title,event_date:eventDate,window_start:eventDate?null:w?.from||null,window_end:eventDate?null:w?.to||null,event_type:/선물/.test(text)?'gift':/생일/.test(text)?'birthday':'relationship',domain:person.relation_type==='coworker'?'company_people':'personal_people',status:'open',notes:'MORI 대화에서 저장',metadata:{source:'mori_chat'}};
+  const {data,error}=await supabaseClient.from('lara_people_events').insert(payload).select('*').single();if(error)throw error;peopleEvents.push(data);lastReferencedPerson=person;renderAll();return data;
+}
+function peopleEventWhen(x){if(x.event_date)return koDateLabel(x.event_date);if(x.window_start&&x.window_end)return`${koDateLabel(x.window_start)}~${koDateLabel(x.window_end)}`;return'시기 미정'}
+
+function currentMonthRange(){const now=new Date(),first=new Date(now.getFullYear(),now.getMonth(),1),last=new Date(now.getFullYear(),now.getMonth()+1,0);return{from:localDateKey(first),to:localDateKey(last),label:`${now.getMonth()+1}월`}}
+function upcomingCandidateTitles(){const s=brief?.schedule||{},r=brief?.registry||{},items=[...(s.today_pending||[]),...(s.routines_due||[]),...(s.upcoming_7||[]),...(r.due_today||[]),...(r.upcoming_7||[]),...(r.windows_now||[]),...registry];return[...new Set(items.map(x=>x?.title).filter(Boolean))]}
+function matchUpcomingTitle(text){const titles=upcomingCandidateTitles();let best=null,bestScore=0;for(const title of titles){if(text.includes(title))return title;const tokens=title.split(/\s+/).map(x=>x.replace(/[^0-9A-Za-z가-힣]/g,'')).filter(x=>x.length>=2),score=tokens.reduce((n,t)=>n+(text.includes(t)?1:0),0);if(score>bestScore){bestScore=score;best=title}}return bestScore>=2?best:null}
+function isCurrentMonthSuppressRequest(text){return/((이번\s*달|당월).*(없|제외|삭제|빼|숨겨|스킵)|(없|제외|삭제|빼|숨겨|스킵).*(이번\s*달|당월))/.test(text)&&/(다가오는|업무|일정|리마인드|페이지|목록|표시|없)/.test(text)}
+async function suppressCurrentMonthFromText(text){const title=matchUpcomingTitle(text);if(!title){reply('이번 달에서 제외할 항목을 특정하지 못했습니다. 업무 이름을 조금 더 그대로 적어주세요.','suppress_cycle');return true}const range=currentMonthRange(),payload={user_id:currentUser.id,target_title:title,suppress_from:range.from,suppress_to:range.to,scope:'mori_upcoming',reason:'chat: current-month no applicable case',active:true,updated_at:new Date().toISOString()};const {error}=await supabaseClient.from('lara_manager_suppressions').upsert(payload,{onConflict:'user_id,target_title,suppress_from,suppress_to'});if(error)throw error;reply(`${range.label} 다가오는 업무에서만 숨겼습니다.\n• ${title}\n\n반복업무 자체는 유지해서 다음 달부터 다시 나타납니다.`,'suppress_cycle');toast('이번 달만 제외');await loadAll();return true}
+
+function normalizeTokens(s){return String(s).toLowerCase().replace(/[^0-9a-z가-힣\s]/g,' ').split(/\s+/).filter(x=>x.length>=2&&!['이번','저번','있어요','있나요','알려줘','보여줘','뭐예요','뭐','제가','저는','그거','관련'].includes(x))}
+function questionBankIntent(text){
+  if(!questionLibrary.length)return null;const tt=normalizeTokens(text);let best=null,bestScore=0;
+  for(const q of questionLibrary){const qt=normalizeTokens(q.example);if(!qt.length)continue;let score=0;for(const t of qt)if(tt.includes(t))score+=1;score=score/Math.max(2,qt.length);if(score>bestScore){bestScore=score;best=q.intent}}
+  return bestScore>=0.5?best:null;
+}
+
+function compactBrainContext(intent,localFallback=''){
+  const s=brief?.schedule||{},r=brief?.registry||{},m=weeklyMetrics(),nw=nextWeekRange();
+  return {
+    now:{date:localDateKey(),mode:seasonMode()},
+    intent,
+    local_fallback:localFallback,
+    profile:managerProfile?{profile:managerProfile.profile,manager_contract:managerProfile.manager_contract}:null,
+    company:{today:[...(s.today_pending||[]),...(s.routines_due||[])].slice(0,12),upcoming_7:[...(r.upcoming_7||[]),...(s.upcoming_7||[])].slice(0,20),windows_now:(r.windows_now||[]).slice(0,16)},
+    personal:{upcoming:mergedEvents().filter(x=>daysUntil(x.event_date)>=0&&daysUntil(x.event_date)<=21).slice(0,20)},
+    people:{open:peopleEvents.filter(x=>overlapsWindow(x,localDateKey(),dateDaysAhead(21))).slice(0,20)},
+    open_loops:inboxItems.slice(0,18).map(x=>({title:x.extracted_title||x.raw_text,type:x.item_type,state:x.metadata?.open_loop_state||'new'})),
+    capacity:m,
+    next_week:nw,
+    recent_chat:chatHistory.slice(-8).map(x=>({role:x.role,content:x.content.slice(0,500)}))
+  };
+}
+async function probeBrain(){
+  try{
+    const {data,error}=await supabaseClient.functions.invoke('mori-brain',{body:{mode:'status'}});
+    if(error)throw error;
+    brainState={reachable:true,configured:!!data?.configured,model:data?.model||null};
+  }catch(e){brainState={reachable:false,configured:false,model:null};console.warn('mori brain probe',e)}
+  updateBrainStatus();
+}
+function updateBrainStatus(){
+  const label=brainState.configured?`BRAIN:${brainState.model||'LLM'}`:brainState.reachable?'BRAIN:READY':'BRAIN:LOCAL';
+  const short=brainState.configured?'BRAIN:LLM':brainState.reachable?'BRAIN:READY':'BRAIN:LOCAL';
+  const a=$('status-brain'),b=$('brain-side-label');if(a)a.textContent=short;if(b)b.textContent=label;
+}
+async function logBrainUsage(data,intent){
+  if(!currentUser||!data?.usage)return;
+  try{await supabaseClient.from('lara_ai_usage').insert({
+    user_id:currentUser.id,provider:'openai',model:data.model||'unknown',purpose:intent||'conversation',
+    input_tokens:data.usage.input_tokens||0,output_tokens:data.usage.output_tokens||0,cached_input_tokens:data.usage.cached_input_tokens||0,
+    estimated_cost_usd:data.usage.estimated_cost_usd||0,metadata:{source:'mori_v1.0'}
+  })}catch(e){console.warn('usage log',e)}
+}
+async function brainReply(text,intent,localFallback){
+  if(!brainState.configured)return null;
+  try{
+    const {data,error}=await supabaseClient.functions.invoke('mori-brain',{body:{message:text,intent:intent||'unknown',context:compactBrainContext(intent,localFallback)}});
+    if(error||!data?.ok||!data?.configured||!data?.reply)throw(error||new Error(data?.error||'brain response error'));
+    await logBrainUsage(data,intent);
+    return data.reply;
+  }catch(e){console.warn('brain fallback',e);return null}
+}
+async function answerSmart(text,intent,localFallback){
+  const ai=await brainReply(text,intent,localFallback);
+  reply(ai||localFallback,intent,{brain:!!ai});
+}
+
+function explicitIntent(text){
+  if(/집\s*가(는|면서|기\s*전)|퇴근하면서|가는\s*길/.test(text))return'commute_brief';
+  if(/다음\s*주/.test(text)&&/(개인|약속|병원|예약|개인적)/.test(text)&&!/(회사|업무)/.test(text))return'next_week_personal';
+  if(/다음\s*주/.test(text)&&/(회사|업무|근태|급여)/.test(text)&&!/(개인)/.test(text))return'next_week_company';
+  if(/다음\s*주/.test(text))return'next_week_all';
+  if(/모레/.test(text))return'tomorrow_brief_2';if(/내일/.test(text))return'tomorrow_brief';
+  if(/오늘.*(뭐|해야|중요|놓치)|뭐.*오늘/.test(text))return'today_brief';
+  if(/이번\s*주.*(요약|정리|어땠|놓친)|주간\s*(브리핑|요약|리뷰)/.test(text))return'weekly_review';
+  if(/이번\s*달.*(요약|정리|어땠|전체)|월간\s*(리뷰|브리핑)/.test(text))return'monthly_review';
+  if(/사람.*(챙길|관련)|선물.*사람|감사.*사람/.test(text)||people.some(p=>text.includes(p.display_name)))return'people';
+  if(/제가.*(놓치|안\s*물어봐)|알아서.*봐|먼저.*알려|신경\s*못\s*쓰/.test(text))return'manager_meta';
+  if(/미리.*(뭐|준비)|준비해야/.test(text))return'prep_reminder';
+  if(/열린\s*고리|오픈\s*루프|open loop/i.test(text))return'open_loops';
+  if(/생활\s*리듬|연간.*분기|회사.*리듬/.test(text))return'rhythm';
+  for(const [k,i] of [['고양이','cats'],['운동','exercise'],['행복주택','housing'],['주거','housing'],['자산','assets'],['포트폴리오','career'],['자동화','development'],['여행','travel']])if(text.includes(k))return i;
+  return questionBankIntent(text);
+}
+function inferCaptureType(text){if(/완료했|끝냈|처리했/.test(text))return'completion';if(/매년|매월|매주|분기|앞으로|잊지|기억해/.test(text))return'recurrence';if(/목표|올해 안|하고 싶/.test(text))return'goal';if(/규칙|원칙|항상|하지 말/.test(text))return'rule';if(/해야|할 일|해줘|추가/.test(text))return'task';return'note'}
+function inferLoopState(text){return/나중에|언젠가|보류|여유되면/.test(text)?'park':'new'}
+function memoryRecallReply(text){
+  for(const p of people)if(text.includes(p.display_name))return peopleReply(text);
+  const key=['운동','고양이','여행','자동화','행복주택','연차','급여'].find(k=>text.includes(k));
+  if(key){const reg=registry.filter(x=>(x.title+' '+(x.notes||'')).includes(key)).slice(0,8),loops=inboxItems.filter(x=>((x.raw_text||'')+' '+(x.extracted_title||'')).includes(key)).slice(0,8);return `${key} 관련 제가 기억한 내용입니다.\n${[...reg.map(x=>`• 리듬 · ${x.title}`),...loops.map(x=>`• Open Loop · ${x.extracted_title||x.raw_text}`)].join('\n')||'• 현재 저장된 항목 없음'}`}
+  return`기억된 Open Loop ${inboxItems.length}건, 사람 이벤트 ${peopleEvents.length}건, 개인 일정 ${mergedEvents().length}건이 있습니다. 키워드를 하나만 더 주시면 해당 맥락으로 좁혀서 보여드릴게요.`;
+}
+function simpleDomainReply(intent,text){
+  const map={exercise:'운동',cats:'고양이',housing:'주거',assets:'자산',career:'포트폴리오',development:'자동화',travel:'여행',health_personal:'건강'};
+  if(map[intent])return personalReply(map[intent]);
+  if(intent==='capacity'){const m=weeklyMetrics();return`최근 7일 기록 기준입니다.\n• 수면 평균: ${m.sleep??'기록 부족'}${m.sleep!==null?'h':''}\n• 에너지 평균: ${m.energy??'기록 부족'}\n• 스트레스 평균: ${m.stress??'기록 부족'}\n• Control 평균: ${m.control??'기록 부족'}\n\n기록이 적으면 강한 결론은 내리지 않고 참고 신호로만 봅니다.`}
+  if(intent==='season_load')return`현재 MORI 모드는 ${seasonMode()}입니다.\n${weeklyAdvice(weeklyMetrics())}`;
+  if(intent==='priority_decision')return`${todayReply()}\n\n지금 하나만 고른다면 마감/약속이 있는 항목 → 미리 준비창이 열린 항목 → 개인 프로젝트 순으로 보겠습니다.`;
+  if(intent==='memory_recall')return memoryRecallReply(text);
+  if(intent==='manager_meta')return managerMetaReply();
+  if(intent==='spending'||intent==='behavior_control')return'이 영역은 질문 의도는 기억하고 있지만 아직 최신 금융/행동 원천 데이터가 MORI에 자동 연결되지는 않았습니다. 관련 기록을 입력하거나 자산/지출 데이터를 연결하면 같은 대화창에서 분석하도록 확장할 수 있습니다.';
+  return null;
+}
+
+async function captureChat(textOverride=null){
+  const input=$('chat-input'),text=(textOverride??input.value).trim();if(!text)return;addLog(text,'user',true,null);input.value='';
+  try{
+    let m=text.match(/^아침체크\s+([^/]+)\s*\/\s*([1-5])\s*\/\s*([1-5])/);if(m){const sleep=parseSleep(m[1]);await saveDaily({sleep_hours:sleep,energy_am:Number(m[2]),stress_am:Number(m[3])});reply(`저장했습니다. 오늘 아침 기준 수면 ${sleep}h · Energy ${m[2]} · Stress ${m[3]}입니다.`,'morning_check');return}
+    m=text.match(/^퇴근체크\s*([1-5])\s*\/\s*([1-5])\s*\/\s*([1-5])\s*\/\s*([1-5])/);if(m){await saveDaily({energy_pm:Number(m[1]),stress_pm:Number(m[2]),room:Number(m[3]),control:Number(m[4])});reply(`퇴근 체크 저장했습니다. Energy ${m[1]} · Stress ${m[2]} · Room ${m[3]} · Control ${m[4]}입니다.`,'evening_check');return}
+    if(isCurrentMonthSuppressRequest(text)){await suppressCurrentMonthFromText(text);return}
+    if(looksLikePeopleEvent(text)){const e=await savePeopleEventFromText(text);reply(`${e.person_name} 관련해서 기억했습니다.\n• ${e.title}\n• 시기: ${peopleEventWhen(e)}\n\n다음 주/오늘/사람 관련 브리핑에 같이 포함하겠습니다.`,'people_event',{people_event_id:e.id});return}
+    if(looksLikeScheduleStatement(text)){const saved=await savePersonalScheduleFromText(text),ev=saved.event;reply(`일정으로 기억했습니다.\n• ${koDateLabel(ev.event_date)} · ${ev.title} · ${ev.start_time?ev.start_time.slice(0,5):'시간 미정'}\n• ${saved.googleMsg}\n\n다가오면 다시 알려드리겠습니다.`,'schedule_add',{event_id:ev.id});toast('일정 저장');return}
+
+    const intent=explicitIntent(text);
+    if(intent==='today_brief'){await answerSmart(text,intent,todayReply());return}
+    if(intent==='commute_brief'){await answerSmart(text,intent,commuteReply());return}
+    if(intent==='tomorrow_brief'){await answerSmart(text,intent,tomorrowReply(1));return}
+    if(intent==='tomorrow_brief_2'){await answerSmart(text,intent,tomorrowReply(2));return}
+    if(intent==='next_week_all'){await answerSmart(text,intent,nextWeekReply('all'));return}
+    if(intent==='next_week_personal'){await answerSmart(text,intent,nextWeekReply('personal'));return}
+    if(intent==='next_week_company'){await answerSmart(text,intent,nextWeekReply('company'));return}
+    if(intent==='weekly_review'){switchPage('weekly');reply(`주간 브리핑을 열었습니다.\n\n${weeklyAdvice(weeklyMetrics())}`,intent);return}
+    if(intent==='monthly_review'){await answerSmart(text,intent,monthlyReply());return}
+    if(intent==='people'){await answerSmart(text,intent,peopleReply(text));return}
+    if(intent==='prep_reminder'){await answerSmart(text,intent,prepReply());return}
+    if(intent==='open_loops'){switchPage('loops');reply(`열린 고리 ${inboxItems.length}건을 열었습니다. EXECUTE / PARK / DELETE로 정리할 수 있습니다.`,intent);return}
+    if(intent==='rhythm'){switchPage('rhythm');reply('회사 일은 연·분기·월 리듬만 유지하고, 세부 실행은 기존 업무 페이지를 기준으로 봅니다.',intent);return}
+    if(/내\s*일정|개인\s*일정|캘린더|calendar/i.test(text)&&looksLikeScheduleQuestion(text)){switchPage('calendar');reply(`예정된 일정 ${mergedEvents().length}건을 열었습니다. ${calendarConnected()?'Google Calendar까지 합쳐서 보고 있습니다.':'Google Calendar를 연결하면 외부 일정도 같이 볼 수 있습니다.'}`,'calendar_query');return}
+    const domain=simpleDomainReply(intent,text);if(domain){await answerSmart(text,intent,domain);return}
+
+    if(brainState.configured&&!/(기억|해야|할\s*일|나중에|추가|등록|챙겨|잊지)/.test(text)){const ai=await brainReply(text,intent||'free_chat','');if(ai){reply(ai,intent||'free_chat',{brain:true});return}}
+    const type=inferCaptureType(text),title=text.length>72?text.slice(0,72)+'…':text,metadata={source:'mori_manager_app_v1.0',capture_mode:true,open_loop_state:inferLoopState(text),inferred_intent:intent||'unknown'};
+    const {data,error}=await supabaseClient.from('lara_manager_inbox').insert({user_id:currentUser.id,raw_text:text,item_type:type,extracted_title:title,status:'inbox',metadata}).select('id,raw_text,item_type,extracted_title,status,metadata,created_at').single();if(error)throw error;inboxItems.unshift(data);renderAll();
+    reply(`기억해둘게요. 지금은 ${metadata.open_loop_state==='park'?'나중에 다시 볼 항목':'열린 고리'}로 저장했습니다.\n\n제가 이 문장을 바로 실행 가능한 일정/사람 이벤트로 확정하기엔 날짜나 대상이 부족해서, 일단 잃어버리지 않게 보관했습니다.`,intent||'capture',{inbox_id:data.id});toast('기억 저장');
+  }catch(e){console.error(e);reply(`처리 중 오류가 있었습니다. 내용은 잃지 않도록 다시 확인할게요.\n${e.message||''}`,'error')}
+}
+
+const pageMeta={chat:{tab:'mori.chat',crumb:'manager / conversation'},calendar:{tab:'calendar.md',crumb:'manager / personal schedule'},weekly:{tab:'weekly.md',crumb:'manager / weekly brief'},rhythm:{tab:'rhythm.json',crumb:'system / cycles'},people:{tab:'people.json',crumb:'manager / people graph'},loops:{tab:'open-loops.txt',crumb:'system / open loops'}};
+function switchPage(page){currentPage=page;document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id===`page-${page}`));document.querySelectorAll('[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===page));$('tab-name').textContent=pageMeta[page].tab;$('crumb').textContent=pageMeta[page].crumb;if(page==='chat')setTimeout(()=>$('chat-input').focus(),30)}
+
+document.querySelectorAll('[data-radar]').forEach(b=>b.addEventListener('click',()=>{radarFilter=b.dataset.radar||'all';renderRadar()}));
+document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>switchPage(b.dataset.page)));
+document.querySelectorAll('.chip').forEach(b=>b.addEventListener('click',()=>captureChat(b.dataset.prompt)));
+$('chat-send').addEventListener('click',()=>captureChat());$('chat-input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();captureChat()}});
+$('refresh-btn').addEventListener('click',()=>loadAll());$('signout-btn').addEventListener('click',()=>supabaseClient.auth.signOut());
+$('gcal-connect-btn').addEventListener('click',connectGoogleCalendar);$('calendar-connect-main').addEventListener('click',connectGoogleCalendar);
+$('google-signin-btn').addEventListener('click',async()=>{$('login-error').textContent='';const {error}=await supabaseClient.auth.signInWithOAuth({provider:'google',options:{redirectTo:MORI_URL}});if(error)$('login-error').textContent='login error: '+error.message});
+supabaseClient.auth.onAuthStateChange((event,session)=>{if(session?.provider_token)setGoogleToken(session.provider_token);if(session?.user)showApp(session.user);else showLogin()});
+(async()=>{const {data}=await supabaseClient.auth.getSession();if(data?.session?.provider_token)setGoogleToken(data.session.provider_token);if(data?.session?.user)await showApp(data.session.user);else showLogin()})();
+</script>
+</body>
+</html>
