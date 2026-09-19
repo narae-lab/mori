@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>MORI</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --ink:#202326; --muted:#777c80; --line:#e8e8e3; --soft:#f6f6f2;
+  --accent:#24282c; --danger:#a84343; --warn:#8a6a18; --ok:#446b50;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;font-family:Inter,Pretendard,"Noto Sans KR",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink);background:#fff}
+button,textarea,input,select{font:inherit}
+button{cursor:pointer}
+#login-overlay{position:fixed;inset:0;background:#fff;display:flex;align-items:center;justify-content:center;z-index:20;padding:24px}
+.login-card{width:min(380px,100%);text-align:center}
+.brand-mark{width:48px;height:48px;border-radius:14px;background:#25292d;color:#fff;display:grid;place-items:center;font-size:22px;font-weight:800;margin:0 auto 18px}
+.login-card h1{font-size:28px;margin:0 0 8px}.login-card p{font-size:14px;color:var(--muted);line-height:1.65;margin:0 0 22px}
+.primary-btn{border:0;border-radius:10px;background:#25292d;color:#fff;padding:12px 18px;width:100%;font-weight:700}
+.login-help{font-size:11px;color:#999;margin-top:13px;line-height:1.5}#login-error{font-size:12px;color:var(--danger);margin-top:10px}
+#app-root{display:none}
+.shell{min-height:100vh;display:grid;grid-template-columns:160px 1fr}
+.sidebar{position:sticky;top:0;height:100vh;padding:24px 12px;background:#25292d;color:#fff;display:flex;flex-direction:column}
+.brand{display:flex;align-items:center;gap:9px;padding:0 8px 22px}.logo{width:28px;height:28px;border-radius:8px;background:#fff;color:#25292d;display:grid;place-items:center;font-weight:900}.brand strong{font-size:16px}
+.nav{display:flex;flex-direction:column;gap:3px}.nav-btn{border:0;background:transparent;color:#bfc3c6;text-align:left;padding:10px 11px;border-radius:8px;font-weight:650}.nav-btn:hover,.nav-btn.active{background:#363b40;color:#fff}
+.sidebar-spacer{flex:1}.sidebar-meta{padding:10px 8px 0;color:#92979b;font-size:11px;line-height:1.5}.text-btn{margin-top:7px;border:0;background:transparent;color:#bfc3c6;padding:0;font-size:11px}
+.main{width:min(780px,100%);margin:0 auto;padding:32px 38px 60px}
+.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}.topbar h1{margin:0;font-size:25px;letter-spacing:-.03em}.icon-btn{border:0;background:transparent;color:var(--muted);padding:5px 0}.icon-btn:hover{color:var(--ink)}
+.page{display:none}.page.active{display:block}
+.section{padding:23px 0;border-top:1px solid var(--line)}.section:first-child{border-top:0;padding-top:0}
+.section-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-bottom:11px}.section h2{font-size:15px;margin:0;letter-spacing:-.01em}.sub{font-size:12px;color:var(--muted);line-height:1.5}
+.radar{margin:0 0 22px}.radar-row{display:flex;gap:12px;padding:8px 0;border-bottom:1px solid #f0f0ed;align-items:flex-start}.radar-row:last-child{border-bottom:0}.radar-when{width:70px;flex:0 0 70px;color:#8a8e91;font-size:12px}.radar-title{font-size:13px;font-weight:650;line-height:1.45}.radar-meta{font-size:11px;color:var(--muted);margin-top:2px}
+.chat-wrap{min-height:calc(100vh - 115px);display:flex;flex-direction:column}
+.chat-intro{padding-bottom:16px;border-bottom:1px solid var(--line)}.chat-intro p{margin:4px 0 0;font-size:13px;color:var(--muted);line-height:1.6}
+.quick{display:flex;gap:7px;flex-wrap:wrap;margin:13px 0 0}.chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:7px 10px;font-size:12px;color:#555}.chip:hover{background:var(--soft)}
+.chat-body{flex:1;padding:22px 0;display:flex;flex-direction:column;gap:12px;min-height:320px;max-height:calc(100vh - 340px);overflow:auto}
+.bubble{max-width:78%;padding:10px 12px;border-radius:14px;font-size:13px;line-height:1.65;white-space:pre-wrap}.bubble.system{background:var(--soft);align-self:flex-start}.bubble.user{background:#25292d;color:#fff;align-self:flex-end}
+.chat-compose{display:grid;grid-template-columns:1fr auto;gap:8px;padding:7px;border:1px solid var(--line);border-radius:15px;box-shadow:0 7px 24px rgba(20,24,28,.06)}.chat-input{resize:none;min-height:48px;max-height:140px;border:0;outline:0;padding:10px;background:transparent}.send-btn{border:0;border-radius:10px;background:#25292d;color:#fff;padding:0 16px;font-weight:700}
+.rhythm-group{padding:13px 0 5px}.rhythm-label{font-size:12px;color:#8d9194;font-weight:700;margin-bottom:5px}.rhythm-row{padding:8px 0;border-bottom:1px solid #f0f0ed}.rhythm-row:last-child{border-bottom:0}.rhythm-title{font-size:13px;font-weight:650}.rhythm-note{font-size:11px;color:var(--muted);margin-top:3px;line-height:1.45}
+details{border-top:1px solid var(--line);padding:15px 0}summary{cursor:pointer;font-size:13px;font-weight:700}.detail-list{padding-top:8px}.empty{font-size:12px;color:#999;padding:8px 0}
+.badge{font-size:10px;border-radius:999px;padding:4px 7px;background:#f0f0ec;color:#727679}.badge.warn{background:#fff5d7;color:#786016}.badge.danger{background:#fff0f0;color:#934343}
+.toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,12px);background:#25292d;color:#fff;padding:9px 13px;border-radius:9px;font-size:12px;opacity:0;pointer-events:none;transition:.18s;z-index:30}.toast.show{opacity:1;transform:translate(-50%,0)}
+.loading{opacity:.55;pointer-events:none}
+@media(max-width:760px){
+  .shell{display:block}.sidebar{position:fixed;left:0;right:0;bottom:0;top:auto;height:auto;z-index:10;padding:7px 9px;background:#25292d}.brand,.sidebar-meta{display:none}.nav{flex-direction:row}.nav-btn{flex:1;text-align:center;padding:9px}.main{padding:20px 16px 88px}.topbar{margin-bottom:16px}.chat-wrap{min-height:calc(100vh - 140px)}.chat-body{max-height:none}.bubble{max-width:88%}
+}
+</style>
+</head>
+<body>
+<div id="login-overlay">
+  <div class="login-card">
+    <div class="brand-mark">M</div><h1>MORI</h1>
+    <p>기억하고, 미리 알려주고, 필요한 순간에 정리해주는 개인 매니저.</p>
+    <button class="primary-btn" id="google-signin-btn">Google로 로그인</button>
+    <div class="login-help">기존 Schedule 앱과 같은 Supabase 계정을 사용합니다.</div><div id="login-error"></div>
+  </div>
+</div>
+
+<div id="app-root">
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="logo">M</div><strong>MORI</strong></div>
+      <nav class="nav">
+        <button class="nav-btn active" data-page="chat">MORI</button>
+        <button class="nav-btn" data-page="rhythm">리듬</button>
+      </nav>
+      <div class="sidebar-spacer"></div>
+      <div class="sidebar-meta"><div id="user-label">로그인됨</div><button id="signout-btn" class="text-btn">로그아웃</button></div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar"><h1 id="page-title">MORI</h1><button class="icon-btn" id="refresh-btn">새로고침</button></header>
+
+      <section class="page active" id="page-chat">
+        <div class="chat-wrap">
+          <div class="chat-intro">
+            <strong id="brief-line">오늘 상태를 불러오는 중이에요.</strong>
+            <p>회사 세부 실행은 기존 업무 페이지에서 관리하고, MORI는 다가오는 시기와 개인 생활을 같이 봅니다.</p>
+            <div class="quick">
+              <button class="chip" data-prompt="오늘 뭐 해야 해?">오늘 뭐 해야 해?</button>
+              <button class="chip" data-prompt="다음주 미리 할 거 있어?">다음주 미리 할 거</button>
+              <button class="chip" data-prompt="미리 뭐 준비해야 해?">미리 준비할 것</button>
+              <button class="chip" data-prompt="내 생활 리듬 보여줘">생활 리듬</button>
+            </div>
+          </div>
+
+          <div class="section radar">
+            <div class="section-head"><h2>다가오는 것</h2><span class="sub">급해지기 전에 알려드려요</span></div>
+            <div id="radar-list"></div>
+          </div>
+
+          <div class="chat-body" id="chat-body">
+            <div class="bubble system">그냥 말하듯 입력하세요. 예: “다음주 미리 할 거 있어?”, “아침체크 6:35 / 3 / 2”, “이건 매년 챙겨줘.”</div>
+          </div>
+          <div class="chat-compose">
+            <textarea class="chat-input" id="chat-input" placeholder="모리에게 말하기"></textarea>
+            <button class="send-btn" id="chat-send">보내기</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="page" id="page-rhythm">
+        <div class="section">
+          <div class="section-head"><div><h2>회사 업무 리듬</h2><div class="sub">세부 체크리스트 대신 연간 · 분기 · 월간 주기만 봅니다.</div></div></div>
+          <div id="work-rhythm"></div>
+        </div>
+        <div class="section">
+          <div class="section-head"><div><h2>개인 생활 리듬</h2><div class="sub">운동 · 고양이 · 주거처럼 MORI가 시기를 기억하는 것들</div></div></div>
+          <div id="personal-rhythm"></div>
+        </div>
+        <details>
+          <summary>기억해 둔 것 보기 <span class="badge" id="inbox-count">0</span></summary>
+          <div class="detail-list" id="inbox-list"></div>
+        </details>
+      </section>
+    </main>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL='https://clokopqfsjlcxchlruvq.supabase.co';
+const SUPABASE_KEY='sb_publishable_xfmRiqEE28TIlBXefAGipA_Kiwk2fS7';
+const supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+let currentUser=null, brief=null, dailyState=null, registry=[], inboxItems=[], toastTimer=null;
+const $=id=>document.getElementById(id);
+function localDateKey(d=new Date()){const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');return `${y}-${m}-${day}`}
+function esc(v=''){return String(v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+function toast(msg){const el=$('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),1600)}
+function setLoading(v){$('app-root').classList.toggle('loading',v)}
+function addBubble(text,type='system'){const div=document.createElement('div');div.className=`bubble ${type}`;div.textContent=text;$('chat-body').appendChild(div);$('chat-body').scrollTop=$('chat-body').scrollHeight}
+function empty(text='아직 없음'){return `<div class="empty">${esc(text)}</div>`}
+function isPersonal(x){return (x.category||'').startsWith('Personal/')}
+function isCompany(x){return !isPersonal(x)}
+function cadenceLabel(x){
+  if(x.cadence_type==='annual') return '연간';
+  if(x.cadence_type==='quarterly') return '분기';
+  if(x.cadence_type==='monthly') return '월간';
+  const c=x.cadence||{};
+  if(Array.isArray(c.months)) return `${c.months.join('·')}월`;
+  if(c.frequency==='weekly') return '주간';
+  if(c.frequency==='monthly_review') return '월 1회';
+  if(c.target_sessions) return `주 ${c.target_sessions}회`;
+  return '필요 시';
+}
+function rhythmRows(items){return items.map(x=>`<div class="rhythm-row"><div class="rhythm-title">${esc(x.title)}</div><div class="rhythm-note">${esc(cadenceLabel(x))}</div></div>`).join('')}
+
+async function showApp(user){currentUser=user;$('login-overlay').style.display='none';$('app-root').style.display='block';$('user-label').textContent=user.email?user.email.replace(/(.{2}).+(@.+)/,'$1•••$2'):'로그인됨';await loadAll()}
+function showLogin(){currentUser=null;$('login-overlay').style.display='flex';$('app-root').style.display='none'}
+
+async function loadAll(){
+  setLoading(true);
+  try{
+    const today=localDateKey();
+    const [briefRes,stateRes,regRes]=await Promise.all([
+      supabaseClient.rpc('lara_manager_work_brief',{p_date:today}),
+      supabaseClient.from('lara_daily_state').select('*').eq('date',today).maybeSingle(),
+      supabaseClient.from('lara_work_registry').select('*').eq('active',true).order('priority')
+    ]);
+    if(briefRes.error) throw briefRes.error;if(stateRes.error) throw stateRes.error;if(regRes.error) throw regRes.error;
+    brief=briefRes.data||{};dailyState=stateRes.data||null;registry=regRes.data||[];
+    inboxItems=brief?.inbox?.items||[];
+    renderAll();
+  }catch(e){console.error(e);$('brief-line').textContent='데이터를 불러오지 못했어요.';toast('데이터 불러오기 오류')}
+  finally{setLoading(false)}
+}
+
+function renderAll(){renderBrief();renderRadar();renderRhythm();renderInbox()}
+function renderBrief(){
+  const s=brief?.schedule||{}, r=brief?.registry||{}, f=brief?.flags||{};
+  const today=(s.today_pending||[]).length+(s.routines_due||[]).length;
+  const windows=(r.windows_now||[]).length;
+  const high=f.high_overdue_count||0;
+  let line='오늘은 크게 급한 회사 리마인드가 없어요.';
+  if(high>0) line=`정리가 필요한 중요 미완료가 ${high}건 있어요.`;
+  else if(today>0&&windows>0) line=`오늘 회사 일정 ${today}건, 미리 준비할 시기 업무 ${windows}건이 있어요.`;
+  else if(today>0) line=`오늘 회사 일정이 ${today}건 있어요. 세부 실행은 기존 업무 페이지에서 보면 됩니다.`;
+  else if(windows>0) line=`오늘 급한 일보다 미리 준비할 업무 ${windows}건을 보는 게 좋아요.`;
+  $('brief-line').textContent=line;
+}
+function renderRadar(){
+  const s=brief?.schedule||{}, r=brief?.registry||{};
+  const rows=[];
+  (r.windows_now||[]).slice(0,4).forEach(x=>rows.push({when:x.window_status==='WATCH_WINDOW'?'감시 시작':x.window_status==='PREP_WINDOW'?'준비 시작':'지금',title:x.title,meta:x.critical?'중요 업무':'업무 리듬'}));
+  (r.upcoming_7||[]).slice(0,3).forEach(x=>rows.push({when:'7일 이내',title:x.title,meta:x.category||'업무'}));
+  if(!rows.length)(s.upcoming_7||[]).slice(0,3).forEach(x=>rows.push({when:'7일 이내',title:x.title,meta:'회사 일정'}));
+  $('radar-list').innerHTML=rows.length?rows.slice(0,5).map(x=>`<div class="radar-row"><div class="radar-when">${esc(x.when)}</div><div><div class="radar-title">${esc(x.title)}</div><div class="radar-meta">${esc(x.meta||'')}</div></div></div>`).join(''):empty('이번 주에 따로 당겨서 볼 항목은 없어요.');
+}
+function renderRhythm(){
+  const company=registry.filter(isCompany);
+  const annual=company.filter(x=>x.cadence_type==='annual');
+  const quarterly=company.filter(x=>x.cadence_type==='quarterly');
+  const monthly=company.filter(x=>x.cadence_type==='monthly'||(x.cadence_type==='custom'&&Array.isArray(x.cadence?.months)));
+  $('work-rhythm').innerHTML=`
+    <div class="rhythm-group"><div class="rhythm-label">연간</div>${annual.length?rhythmRows(annual):empty()}</div>
+    <div class="rhythm-group"><div class="rhythm-label">분기</div>${quarterly.length?rhythmRows(quarterly):empty()}</div>
+    <div class="rhythm-group"><div class="rhythm-label">월간</div>${monthly.length?rhythmRows(monthly):empty()}</div>`;
+  const personal=registry.filter(isPersonal);
+  $('personal-rhythm').innerHTML=personal.length?rhythmRows(personal):empty();
+}
+function renderInbox(){
+  $('inbox-count').textContent=inboxItems.length;
+  $('inbox-list').innerHTML=inboxItems.length?inboxItems.slice(0,12).map(x=>`<div class="rhythm-row"><div class="rhythm-title">${esc(x.title||x.raw_text||'기억')}</div><div class="rhythm-note">${esc(x.type||'inbox')}</div></div>`).join(''):empty();
+}
+
+function parseSleep(v){
+  v=String(v).trim();
+  if(/^\d{1,2}:\d{2}$/.test(v)){const [h,m]=v.split(':').map(Number);return Math.round((h+m/60)*100)/100}
+  const n=Number(v);return Number.isFinite(n)?n:null;
+}
+async function saveDaily(patch){
+  const payload={user_id:currentUser.id,date:localDateKey(),...(dailyState||{}),...patch,updated_at:new Date().toISOString()};delete payload.created_at;
+  const {data,error}=await supabaseClient.from('lara_daily_state').upsert(payload,{onConflict:'user_id,date'}).select().single();
+  if(error) throw error;dailyState=data;
+}
+function todayReply(){
+  const s=brief?.schedule||{},r=brief?.registry||{};
+  const today=[...(s.today_pending||[]),...(s.routines_due||[])];
+  const windows=r.windows_now||[];
+  const parts=[];
+  if(today.length) parts.push(`회사 세부 실행은 기존 페이지 기준으로 오늘 ${today.length}건 있어요.`);
+  else parts.push('오늘 Schedule에 확정된 회사 업무는 없어요.');
+  if(windows.length) parts.push(`다만 미리 준비하거나 감시할 시기 업무가 ${windows.length}건 있어요: ${windows.slice(0,3).map(x=>x.title).join(', ')}.`);
+  const personal=registry.filter(isPersonal).slice(0,3).map(x=>x.title);
+  if(personal.length) parts.push(`개인 쪽은 MORI가 ${personal.join(', ')} 등을 계속 기억하고 있어요.`);
+  return parts.join('\n');
+}
+function nextWeekReply(){
+  const r=brief?.registry||{},s=brief?.schedule||{};
+  const arr=[...(r.upcoming_7||[]),...(s.upcoming_7||[])];
+  if(!arr.length) return '현재 데이터 기준으로 다음 7일 안에 확정된 추가 리마인드는 없어요.';
+  return `다음 7일에 눈여겨볼 건 ${arr.slice(0,5).map(x=>x.title).join(', ')}예요. 회사 세부 실행은 기존 업무 페이지에서 확인하면 됩니다.`;
+}
+function prepReply(){
+  const arr=brief?.registry?.windows_now||[];
+  if(!arr.length) return '지금 따로 앞당겨 준비하라고 잡힌 업무는 없어요.';
+  return `지금은 ${arr.slice(0,5).map(x=>x.title).join(', ')} 쪽을 미리 보면 좋아요.`;
+}
+function inferCaptureType(text){if(/완료했|끝냈|처리했/.test(text))return'completion';if(/매년|매월|매주|분기|앞으로|잊지|기억해/.test(text))return'recurrence';if(/목표|올해 안|하고 싶/.test(text))return'goal';if(/규칙|원칙|항상|하지 말/.test(text))return'rule';if(/해야|할 일|해줘|추가/.test(text))return'task';return'note'}
+async function captureChat(textOverride=null){
+  const input=$('chat-input');const text=(textOverride??input.value).trim();if(!text)return;addBubble(text,'user');input.value='';
+  try{
+    let m=text.match(/^아침체크\s+([^/]+)\s*\/\s*([1-5])\s*\/\s*([1-5])/);
+    if(m){const sleep=parseSleep(m[1]);await saveDaily({sleep_hours:sleep,energy_am:Number(m[2]),stress_am:Number(m[3])});addBubble(`아침 체크 저장했어요. 수면 ${sleep}h · Energy ${m[2]} · Stress ${m[3]}`);return}
+    m=text.match(/^퇴근체크\s*([1-5])\s*\/\s*([1-5])\s*\/\s*([1-5])\s*\/\s*([1-5])/);
+    if(m){await saveDaily({energy_pm:Number(m[1]),stress_pm:Number(m[2]),room:Number(m[3]),control:Number(m[4])});addBubble(`퇴근 체크 저장했어요. Energy ${m[1]} · Stress ${m[2]} · Room ${m[3]} · Control ${m[4]}`);return}
+    if(/오늘.*뭐|오늘.*해야|뭐.*오늘/.test(text)){addBubble(todayReply());return}
+    if(/다음주|다음 주|7일/.test(text)){addBubble(nextWeekReply());return}
+    if(/미리.*뭐|미리.*준비|준비해야/.test(text)){addBubble(prepReply());return}
+    if(/생활 리듬|리듬 보여/.test(text)){switchPage('rhythm');addBubble('리듬 화면으로 열어뒀어요. 회사는 연간·분기·월간만, 개인은 반복 관리 항목만 보여줍니다.');return}
+    const type=inferCaptureType(text);const title=text.length>52?text.slice(0,52)+'…':text;
+    const {error}=await supabaseClient.from('lara_manager_inbox').insert({user_id:currentUser.id,raw_text:text,item_type:type,extracted_title:title,status:'inbox',metadata:{source:'mori_manager_app_v0.4',capture_mode:true}});
+    if(error)throw error;addBubble('기억해뒀어요. 적절한 시기에 다시 꺼낼 수 있도록 MORI Inbox에 저장했습니다.');toast('기억해뒀어요');await loadAll();
+  }catch(e){console.error(e);addBubble('처리 중 오류가 발생했어요.');}
+}
+function switchPage(page){document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.page===page));document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(`page-${page}`).classList.add('active');$('page-title').textContent=page==='chat'?'MORI':'리듬'}
+
+$('google-signin-btn').addEventListener('click',async()=>{ $('login-error').textContent='';const {error}=await supabaseClient.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.href}});if(error)$('login-error').textContent='로그인 실패: '+error.message});
+$('signout-btn').addEventListener('click',()=>supabaseClient.auth.signOut());
+$('refresh-btn').addEventListener('click',()=>loadAll().then(()=>toast('새로고침 완료')));
+$('chat-send').addEventListener('click',()=>captureChat());
+$('chat-input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();captureChat()}});
+document.querySelectorAll('.chip').forEach(b=>b.addEventListener('click',()=>captureChat(b.dataset.prompt)));
+document.querySelectorAll('.nav-btn').forEach(b=>b.addEventListener('click',()=>switchPage(b.dataset.page)));
+supabaseClient.auth.onAuthStateChange((event,session)=>{if(session?.user)showApp(session.user);else showLogin()});
+(async()=>{const {data}=await supabaseClient.auth.getSession();if(data?.session?.user)await showApp(data.session.user);else showLogin()})();
+</script>
+</body>
+</html>
