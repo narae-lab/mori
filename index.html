@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#22262b" />
+<title>MORI</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg:#f4f4f2;
+    --surface:#ffffff;
+    --surface-2:#f8f8f6;
+    --ink:#1e2226;
+    --muted:#6e7378;
+    --line:#dedfdb;
+    --panel:#2d3136;
+    --panel-2:#3b4046;
+    --accent:#5d6f64;
+    --accent-soft:#e9eee9;
+    --warn:#9a6b2f;
+    --warn-soft:#f6eee2;
+    --danger:#a14a45;
+    --danger-soft:#f7e8e6;
+    --ok:#3f6d55;
+    --ok-soft:#e7f0ea;
+    --shadow:0 10px 30px rgba(20,24,28,.08);
+    --radius:16px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:Inter, Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif}
+  button,input,textarea,select{font:inherit}
+  button{cursor:pointer}
+  .hidden{display:none!important}
+
+  #login-overlay{
+    position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(160deg,#23272c 0%,#30363c 60%,#454b50 100%);z-index:1000;padding:24px;
+  }
+  .login-card{width:min(420px,100%);background:#fff;border-radius:22px;padding:32px;box-shadow:0 20px 80px rgba(0,0,0,.24)}
+  .brand-mark{width:48px;height:48px;border-radius:14px;background:var(--panel);color:#fff;display:grid;place-items:center;font-weight:800;letter-spacing:.04em;margin-bottom:18px}
+  .login-card h1{margin:0;font-size:28px;letter-spacing:-.04em}
+  .login-card p{margin:10px 0 24px;color:var(--muted);line-height:1.55}
+  .primary-btn{border:0;background:var(--panel);color:#fff;border-radius:11px;padding:12px 16px;font-weight:700;width:100%}
+  .primary-btn:hover{background:#1e2226}
+  .login-help{font-size:12px;color:#8b8f93;margin-top:14px;line-height:1.5}
+  #login-error{font-size:12px;color:var(--danger);margin-top:10px}
+
+  #app-root{min-height:100vh;display:none}
+  .shell{width:min(1280px,100%);margin:0 auto;display:grid;grid-template-columns:220px 1fr;min-height:100vh}
+  .sidebar{background:var(--panel);color:#fff;padding:22px 16px;position:sticky;top:0;height:100vh;display:flex;flex-direction:column}
+  .brand{display:flex;align-items:center;gap:10px;padding:4px 8px 22px}
+  .brand .logo{width:34px;height:34px;border-radius:10px;background:#fff;color:var(--panel);display:grid;place-items:center;font-weight:900}
+  .brand strong{font-size:17px;letter-spacing:-.02em}
+  .nav{display:flex;flex-direction:column;gap:6px}
+  .nav-btn{border:0;background:transparent;color:#c9cdd1;text-align:left;padding:10px 12px;border-radius:9px;font-weight:650}
+  .nav-btn:hover,.nav-btn.active{background:var(--panel-2);color:#fff}
+  .sidebar-spacer{flex:1}
+  .sidebar-meta{border-top:1px solid rgba(255,255,255,.1);padding:16px 8px 0;color:#aeb3b8;font-size:12px;line-height:1.6}
+  .text-btn{border:0;background:transparent;color:inherit;padding:0;text-decoration:underline;text-underline-offset:3px}
+
+  .main{min-width:0;padding:26px 30px 48px}
+  .topbar{display:flex;align-items:center;gap:12px;margin-bottom:22px}
+  .topbar-main{min-width:0;flex:1}
+  .eyebrow{font-size:12px;color:var(--muted);font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+  .topbar h1{font-size:27px;margin:3px 0 0;letter-spacing:-.04em}
+  .icon-btn{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 11px;color:var(--ink);box-shadow:0 2px 8px rgba(0,0,0,.03)}
+  .icon-btn:hover{background:var(--surface-2)}
+
+  .page{display:none}
+  .page.active{display:block}
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:0 4px 18px rgba(30,34,38,.035);min-width:0}
+  .card.dark{background:var(--panel);border-color:var(--panel);color:#fff}
+  .card h2{font-size:16px;margin:0;letter-spacing:-.02em}
+  .card h3{font-size:14px;margin:0;letter-spacing:-.01em}
+  .card-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .card-head .grow{flex:1}
+  .sub{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.45}
+  .dark .sub{color:#b8bec4}
+  .span-12{grid-column:span 12}.span-8{grid-column:span 8}.span-7{grid-column:span 7}.span-6{grid-column:span 6}.span-5{grid-column:span 5}.span-4{grid-column:span 4}
+
+  .metric-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  .metric{background:var(--surface-2);border-radius:12px;padding:13px}
+  .metric strong{display:block;font-size:22px;letter-spacing:-.04em}
+  .metric span{font-size:11px;color:var(--muted)}
+  .dark .metric{background:rgba(255,255,255,.08)}
+  .dark .metric span{color:#c4c9cd}
+
+  .list{display:flex;flex-direction:column;gap:8px}
+  .item{border:1px solid var(--line);border-radius:11px;padding:11px 12px;background:#fff;display:flex;gap:10px;align-items:flex-start}
+  .item.compact{padding:9px 10px}
+  .item-main{min-width:0;flex:1}
+  .item-title{font-size:13px;font-weight:700;line-height:1.42;word-break:keep-all;overflow-wrap:anywhere}
+  .item-meta{font-size:11px;color:var(--muted);margin-top:3px;line-height:1.45}
+  .badge{display:inline-flex;align-items:center;border-radius:999px;padding:4px 7px;font-size:10px;font-weight:800;white-space:nowrap;background:#eceeec;color:#555b60}
+  .badge.p1,.badge.critical{background:var(--danger-soft);color:var(--danger)}
+  .badge.p2{background:var(--warn-soft);color:var(--warn)}
+  .badge.window{background:#e8eaf4;color:#50587c}
+  .badge.ok{background:var(--ok-soft);color:var(--ok)}
+  .empty{border:1px dashed var(--line);border-radius:11px;padding:14px;text-align:center;color:var(--muted);font-size:12px;background:var(--surface-2)}
+
+  .alert{border-radius:12px;padding:12px 13px;font-size:12.5px;line-height:1.5;margin-bottom:10px}
+  .alert-danger{background:var(--danger-soft);color:#733b38}
+  .alert-warn{background:var(--warn-soft);color:#765129}
+  .alert-ok{background:var(--ok-soft);color:#355a47}
+
+  .check-form{display:grid;grid-template-columns:1.2fr 1fr 1fr auto;gap:8px;align-items:end}
+  .field label{display:block;font-size:10.5px;color:var(--muted);font-weight:700;margin:0 0 5px 2px}
+  .field input,.field select,.chat-input{width:100%;border:1px solid var(--line);background:#fff;border-radius:10px;padding:10px 11px;outline:none}
+  .field input:focus,.field select:focus,.chat-input:focus{border-color:#919a93;box-shadow:0 0 0 3px rgba(93,111,100,.1)}
+  .small-btn{border:0;border-radius:10px;padding:10px 13px;background:var(--panel);color:#fff;font-weight:700;white-space:nowrap}
+  .small-btn.secondary{background:var(--surface-2);color:var(--ink);border:1px solid var(--line)}
+
+  .section-title{display:flex;align-items:center;gap:9px;margin:24px 0 10px}
+  .section-title h2{font-size:15px;margin:0}
+  .section-title .line{height:1px;background:var(--line);flex:1}
+  .section-title span{font-size:11px;color:var(--muted)}
+
+  .personal-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+  .personal-card{background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:13px}
+  .personal-card .kicker{font-size:10px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.05em}
+  .personal-card strong{display:block;font-size:13px;margin-top:4px;line-height:1.4}
+  .personal-card p{font-size:11px;color:var(--muted);line-height:1.5;margin:7px 0 0}
+
+  .pet-row{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+  .pet{border:1px solid var(--line);border-radius:12px;padding:13px;background:#fff}
+  .pet-name{font-size:15px;font-weight:800}
+  .pet-meta{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.5}
+
+  .chat-wrap{height:calc(100vh - 155px);min-height:560px;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .chat-head{padding:15px 17px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+  .chat-status{width:9px;height:9px;border-radius:50%;background:#d5a859}
+  .chat-body{flex:1;overflow:auto;padding:18px;display:flex;flex-direction:column;gap:12px;background:#fafaf8}
+  .bubble{max-width:76%;border-radius:15px;padding:11px 13px;font-size:13px;line-height:1.55;white-space:pre-wrap}
+  .bubble.system{align-self:flex-start;background:#fff;border:1px solid var(--line)}
+  .bubble.user{align-self:flex-end;background:var(--panel);color:#fff}
+  .chat-compose{padding:12px;border-top:1px solid var(--line);background:#fff;display:grid;grid-template-columns:1fr auto;gap:8px}
+  .chat-input{resize:none;min-height:44px;max-height:120px;line-height:1.45}
+  .send-btn{border:0;background:var(--panel);color:#fff;border-radius:11px;padding:0 18px;font-weight:750}
+  .chat-note{font-size:10.5px;color:var(--muted);padding:0 14px 10px;background:#fff}
+
+  .toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,12px);background:rgba(29,33,37,.94);color:#fff;border-radius:10px;padding:10px 14px;font-size:12px;font-weight:750;opacity:0;pointer-events:none;transition:.18s;z-index:2000}
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+  .loading{opacity:.55;pointer-events:none}
+
+  @media(max-width:920px){
+    .shell{grid-template-columns:1fr}
+    .sidebar{position:fixed;z-index:100;left:0;right:0;bottom:0;top:auto;height:auto;padding:8px 10px max(8px,env(safe-area-inset-bottom));display:block}
+    .brand,.sidebar-meta{display:none}
+    .nav{flex-direction:row;gap:4px}.nav-btn{flex:1;text-align:center;padding:10px 5px;font-size:12px}
+    .main{padding:18px 14px 92px}
+    .span-8,.span-7,.span-6,.span-5,.span-4{grid-column:span 12}
+    .metric-row{grid-template-columns:repeat(2,1fr)}
+    .personal-grid,.pet-row{grid-template-columns:1fr}
+    .check-form{grid-template-columns:1fr 1fr}.check-form .small-btn{grid-column:span 2}
+    .chat-wrap{height:calc(100vh - 155px);min-height:480px}
+    .bubble{max-width:88%}
+  }
+  @media(max-width:520px){
+    .topbar h1{font-size:23px}.topbar{align-items:flex-start}
+    .metric-row{grid-template-columns:1fr 1fr}
+    .card{padding:15px}
+  }
+</style>
+</head>
+<body>
+<div id="login-overlay">
+  <div class="login-card">
+    <div class="brand-mark">L</div>
+    <h1>MORI</h1>
+    <p>회사 업무, 개인 일정, 건강관리와 장기 목표를 한곳에서 운영하는 나래님의 매니저입니다.</p>
+    <button class="primary-btn" id="google-signin-btn">Google로 로그인</button>
+    <div class="login-help">기존 Schedule 앱과 같은 Supabase 계정을 사용합니다. 로컬 파일에서는 OAuth가 제한될 수 있어 GitHub Pages 배포 후 로그인 테스트가 가장 정확합니다.</div>
+    <div id="login-error"></div>
+  </div>
+</div>
+
+<div id="app-root">
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="logo">M</div><strong>MORI</strong></div>
+      <nav class="nav">
+        <button class="nav-btn active" data-page="today">오늘</button>
+        <button class="nav-btn" data-page="work">회사</button>
+        <button class="nav-btn" data-page="personal">개인</button>
+        <button class="nav-btn" data-page="chat">대화</button>
+      </nav>
+      <div class="sidebar-spacer"></div>
+      <div class="sidebar-meta">
+        <div id="user-label">로그인됨</div>
+        <button id="signout-btn" class="text-btn">로그아웃</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="topbar-main">
+          <div class="eyebrow" id="date-eyebrow">MORI PERSONAL OS</div>
+          <h1 id="page-title">오늘</h1>
+        </div>
+        <button class="icon-btn" id="refresh-btn" title="새로고침">새로고침</button>
+      </header>
+
+      <section class="page active" id="page-today">
+        <div class="grid">
+          <article class="card dark span-12">
+            <div class="card-head">
+              <div class="grow">
+                <h2>오늘의 운영판</h2>
+                <div class="sub">Schedule + MORI Work Registry 기준</div>
+              </div>
+              <span class="badge" id="sync-badge">불러오는 중</span>
+            </div>
+            <div class="metric-row">
+              <div class="metric"><strong id="m-today">—</strong><span>오늘 회사업무</span></div>
+              <div class="metric"><strong id="m-overdue">—</strong><span>미완료</span></div>
+              <div class="metric"><strong id="m-window">—</strong><span>준비/감시</span></div>
+              <div class="metric"><strong id="m-next7">—</strong><span>향후 7일</span></div>
+            </div>
+          </article>
+
+          <article class="card span-7">
+            <div class="card-head"><div class="grow"><h2>오늘 회사</h2><div class="sub">오늘 실제로 수행할 항목</div></div></div>
+            <div id="today-work-list" class="list"></div>
+          </article>
+
+          <article class="card span-5">
+            <div class="card-head"><div class="grow"><h2>위험 / 미리 할 일</h2><div class="sub">미완료와 Registry 준비창</div></div></div>
+            <div id="risk-list"></div>
+          </article>
+
+          <article class="card span-12">
+            <div class="card-head"><div class="grow"><h2>아침 체크</h2><div class="sub">수면 · Energy · Stress만 기록합니다. 운영상태 판단은 AI 연결 후 추가합니다.</div></div><span class="badge" id="am-status">미입력</span></div>
+            <form class="check-form" id="am-form">
+              <div class="field"><label>Sleep (h)</label><input id="am-sleep" type="number" step="0.1" min="0" max="24" placeholder="6.5"></div>
+              <div class="field"><label>Energy 1–5</label><select id="am-energy"><option value="">선택</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></div>
+              <div class="field"><label>Stress 1–5</label><select id="am-stress"><option value="">선택</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></div>
+              <button class="small-btn" type="submit">저장</button>
+            </form>
+          </article>
+
+          <article class="card span-12">
+            <div class="card-head"><div class="grow"><h2>다음 7일</h2><div class="sub">Schedule의 확정 업무 기준</div></div></div>
+            <div id="next7-list" class="list"></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="page" id="page-work">
+        <div class="grid">
+          <article class="card span-6">
+            <div class="card-head"><div class="grow"><h2>미완료 업무</h2><div class="sub">Schedule에서 마감일이 지난 일회성 업무</div></div><span class="badge" id="overdue-count">0</span></div>
+            <div id="overdue-list" class="list"></div>
+          </article>
+          <article class="card span-6">
+            <div class="card-head"><div class="grow"><h2>원장상 준비 / 감시</h2><div class="sub">오늘 체크리스트에 없어도 MORI가 추적하는 업무</div></div><span class="badge" id="window-count">0</span></div>
+            <div id="window-list" class="list"></div>
+          </article>
+          <article class="card span-12">
+            <div class="card-head"><div class="grow"><h2>Manager Inbox</h2><div class="sub">아직 구조화/처리되지 않은 새 업무·규칙·목표</div></div><span class="badge" id="inbox-count">0</span></div>
+            <div id="inbox-list" class="list"></div>
+          </article>
+          <article class="card span-12">
+            <div class="card-head"><div class="grow"><h2>프로세스형 업무</h2><div class="sub">급여마감처럼 날짜 하나가 아니라 단계로 움직이는 Workflow</div></div></div>
+            <div id="workflow-list" class="list"></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="page" id="page-personal">
+        <div class="grid">
+          <article class="card span-7">
+            <div class="card-head"><div class="grow"><h2>개인 운영</h2><div class="sub">운동 · 주거 · 고양이 등 현재 활성 Personal Registry</div></div></div>
+            <div id="personal-registry" class="personal-grid"></div>
+          </article>
+          <article class="card span-5">
+            <div class="card-head"><div class="grow"><h2>레오 · 댕댕이</h2><div class="sub">개별 건강기록을 누적합니다.</div></div></div>
+            <div id="pet-list" class="pet-row"></div>
+          </article>
+          <article class="card span-12">
+            <div class="card-head"><div class="grow"><h2>저녁 체크</h2><div class="sub">퇴근 후 Energy · Stress · Room · Control</div></div><span class="badge" id="pm-status">미입력</span></div>
+            <form class="check-form" id="pm-form" style="grid-template-columns:repeat(4,1fr) auto">
+              <div class="field"><label>Energy 1–5</label><select id="pm-energy"><option value="">선택</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></div>
+              <div class="field"><label>Stress 1–5</label><select id="pm-stress"><option value="">선택</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></div>
+              <div class="field"><label>Room 1–5</label><select id="pm-room"><option value="">선택</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></div>
+              <div class="field"><label>Control 1–5</label><select id="pm-control"><option value="">선택</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></div>
+              <button class="small-btn" type="submit">저장</button>
+            </form>
+          </article>
+        </div>
+      </section>
+
+      <section class="page" id="page-chat">
+        <div class="chat-wrap">
+          <div class="chat-head"><span class="chat-status"></span><strong>MORI</strong><span class="sub" style="margin:0">v0.1 · Capture Mode</span></div>
+          <div class="chat-body" id="chat-body">
+            <div class="bubble system">지금 버전에서는 새 업무·규칙·목표를 자연어로 받아 Manager Inbox에 저장합니다. GPT 판단 대화는 다음 연결 단계에서 활성화됩니다.</div>
+          </div>
+          <div class="chat-compose">
+            <textarea class="chat-input" id="chat-input" placeholder="예: 아 맞다, 매년 12월에 이것도 확인해야 해. 잊지 마."></textarea>
+            <button class="send-btn" id="chat-send">보내기</button>
+          </div>
+          <div class="chat-note">명확한 조회/완료/날짜계산은 코드로, 판단이 필요한 대화만 추후 GPT API를 호출하도록 설계합니다.</div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://clokopqfsjlcxchlruvq.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_xfmRiqEE28TIlBXefAGipA_Kiwk2fS7';
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let currentUser = null;
+let brief = null;
+let dailyState = null;
+let personalRegistry = [];
+let pets = [];
+let toastTimer = null;
+
+const $ = id => document.getElementById(id);
+function localDateKey(d=new Date()){
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+function formatKoreanDate(d=new Date()){
+  return new Intl.DateTimeFormat('ko-KR',{year:'numeric',month:'long',day:'numeric',weekday:'short'}).format(d);
+}
+function esc(v=''){
+  return String(v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+}
+function toast(msg){
+  const el=$('toast'); el.textContent=msg; el.classList.add('show');
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),1700);
+}
+function priorityLabel(p){
+  if(p==='high'||p===1||p==='1') return ['P1','p1'];
+  if(p==='mid'||p===2||p==='2') return ['P2','p2'];
+  if(p==='low'||p===3||p==='3') return ['P3',''];
+  return ['', ''];
+}
+function normTitle(s=''){
+  return String(s).toLowerCase().replace(/★|\(.*?\)|\[.*?\]|\s+/g,'').replace(/[^가-힣a-z0-9]/g,'');
+}
+function emptyHTML(text='없음'){ return `<div class="empty">${esc(text)}</div>`; }
+function itemHTML(title, meta='', badgeText='', badgeClass=''){
+  return `<div class="item"><div class="item-main"><div class="item-title">${esc(title)}</div>${meta?`<div class="item-meta">${esc(meta)}</div>`:''}</div>${badgeText?`<span class="badge ${badgeClass}">${esc(badgeText)}</span>`:''}</div>`;
+}
+function setLoading(v){ $('app-root').classList.toggle('loading',v); }
+
+function showLogin(){
+  currentUser=null; $('login-overlay').style.display='flex'; $('app-root').style.display='none';
+}
+async function showApp(user){
+  currentUser=user; $('login-overlay').style.display='none'; $('app-root').style.display='block';
+  $('user-label').textContent = user.email ? user.email.replace(/(.{2}).+(@.+)/,'$1•••$2') : '로그인됨';
+  $('date-eyebrow').textContent = `${formatKoreanDate()} · MORI PERSONAL OS`;
+  await loadAll();
+}
+
+async function loadAll(){
+  setLoading(true);
+  try{
+    const today=localDateKey();
+    const [briefRes,stateRes,regRes,petsRes] = await Promise.all([
+      supabaseClient.rpc('lara_manager_work_brief',{p_date:today}),
+      supabaseClient.from('lara_daily_state').select('*').eq('date',today).maybeSingle(),
+      supabaseClient.from('lara_work_registry').select('*').eq('active',true),
+      supabaseClient.from('lara_pets').select('*').eq('active',true).order('name')
+    ]);
+    if(briefRes.error) throw briefRes.error;
+    if(stateRes.error) throw stateRes.error;
+    if(regRes.error) throw regRes.error;
+    if(petsRes.error) throw petsRes.error;
+    brief=briefRes.data||{}; dailyState=stateRes.data||null;
+    personalRegistry=(regRes.data||[]).filter(x=>(x.category||'').startsWith('Personal/'));
+    pets=petsRes.data||[];
+    renderAll();
+    $('sync-badge').textContent='동기화됨'; $('sync-badge').className='badge ok';
+  }catch(e){
+    console.error(e); $('sync-badge').textContent='오류'; $('sync-badge').className='badge p1';
+    toast('데이터를 불러오지 못했습니다');
+  }finally{ setLoading(false); }
+}
+
+function renderAll(){
+  renderToday(); renderWork(); renderPersonal(); renderDailyState();
+}
+function renderToday(){
+  const s=brief?.schedule||{}, r=brief?.registry||{}, flags=brief?.flags||{};
+  const today=[...(s.today_pending||[]), ...(s.routines_due||[])];
+  const overdue=s.overdue||[], windows=r.windows_now||[], next7=s.upcoming_7||[];
+  $('m-today').textContent=today.length; $('m-overdue').textContent=overdue.length; $('m-window').textContent=windows.length; $('m-next7').textContent=next7.length;
+
+  const todayBox=$('today-work-list');
+  todayBox.innerHTML = today.length ? today.map(x=>{
+    const [b,c]=priorityLabel(x.priority); return itemHTML(x.title||'제목 없음',x.frequency?`Routine · ${x.frequency}`:(x.date?`Task · ${x.date}`:'Task'),b,c);
+  }).join('') : emptyHTML('오늘 Schedule에 확정된 업무가 없습니다.');
+
+  const risks=[];
+  if(flags.high_overdue_count>0) risks.push(`<div class="alert alert-danger">P1 미완료 업무가 ${flags.high_overdue_count}건 있습니다. 처리 여부 또는 상태 정리가 필요합니다.</div>`);
+  windows.slice(0,4).forEach(w=>{
+    const label=w.window_status==='WATCH_WINDOW'?'감시 시작':w.window_status==='PREP_WINDOW'?'준비 시작':'실행 구간';
+    risks.push(`<div class="alert alert-warn"><strong>${esc(w.title)}</strong><br>${esc(label)} · ${w.critical?'Critical':'Registry'}</div>`);
+  });
+  if(!risks.length) risks.push(`<div class="alert alert-ok">현재 별도 Critical 경고가 없습니다.</div>`);
+  $('risk-list').innerHTML=risks.join('');
+
+  $('next7-list').innerHTML=next7.length?next7.slice(0,18).map(x=>itemHTML(x.title,`${x.date} · ${x.kind}`,priorityLabel(x.priority)[0],priorityLabel(x.priority)[1])).join(''):emptyHTML();
+}
+function renderWork(){
+  const s=brief?.schedule||{}, r=brief?.registry||{}, inbox=brief?.inbox||{};
+  const overdue=s.overdue||[], windows=r.windows_now||[], items=inbox.items||[], workflows=r.workflows||[];
+  $('overdue-count').textContent=overdue.length; $('window-count').textContent=windows.length; $('inbox-count').textContent=inbox.pending_count||0;
+  $('overdue-list').innerHTML=overdue.length?overdue.map(x=>{const [b,c]=priorityLabel(x.priority);return itemHTML(x.title,`due ${x.due}`,b,c)}).join(''):emptyHTML();
+  $('window-list').innerHTML=windows.length?windows.map(x=>itemHTML(x.title,`${x.window_status} · ${x.category||''}`,x.critical?'Critical':'Window',x.critical?'critical':'window')).join(''):emptyHTML();
+  $('inbox-list').innerHTML=items.length?items.map(x=>itemHTML(x.title||x.raw_text,(x.type||'unknown')+' · '+String(x.created_at||'').slice(0,10),'Inbox','')).join(''):emptyHTML();
+  $('workflow-list').innerHTML=workflows.length?workflows.map(x=>itemHTML(x.title,x.category||'Workflow','Workflow','window')).join(''):emptyHTML();
+}
+function renderPersonal(){
+  $('personal-registry').innerHTML=personalRegistry.length?personalRegistry.map(x=>{
+    let desc=x.notes||'';
+    if(x.title.includes('운동')) desc='주 4회 · 근력 2 + 유산소 2 · 어려운 날 10분 대체';
+    if(x.title.includes('주거')) desc='행복주택·공공임대·청년주거 공고 모니터링';
+    if(x.title.includes('고양이')) desc=(x.prep_steps||[]).slice(0,2).join(' · ')||desc;
+    return `<div class="personal-card"><div class="kicker">${esc((x.category||'Personal').replace('Personal/',''))}</div><strong>${esc(x.title)}</strong><p>${esc(desc)}</p></div>`;
+  }).join(''):emptyHTML();
+  $('pet-list').innerHTML=pets.length?pets.map(p=>{
+    const sex=p.sex==='male'?'남아':p.sex==='female'?'여아':'성별 미상';
+    const birth=p.birth_estimate_start?`${String(p.birth_estimate_start).slice(0,7)}${p.birth_estimate_end&&String(p.birth_estimate_end).slice(0,7)!==String(p.birth_estimate_start).slice(0,7)?'~'+String(p.birth_estimate_end).slice(0,7):''} 출생 추정`:'';
+    return `<div class="pet"><div class="pet-name">${esc(p.name)}</div><div class="pet-meta">${esc(sex)} · ${esc(birth)}<br>기준 체중 ${esc(p.baseline_weight_kg??'—')}kg</div></div>`;
+  }).join(''):emptyHTML();
+}
+function renderDailyState(){
+  if(!dailyState){
+    $('am-status').textContent='미입력'; $('pm-status').textContent='미입력'; return;
+  }
+  if(dailyState.sleep_hours!=null) $('am-sleep').value=dailyState.sleep_hours;
+  if(dailyState.energy_am!=null) $('am-energy').value=dailyState.energy_am;
+  if(dailyState.stress_am!=null) $('am-stress').value=dailyState.stress_am;
+  if(dailyState.energy_am!=null||dailyState.stress_am!=null||dailyState.sleep_hours!=null){ $('am-status').textContent='저장됨'; $('am-status').className='badge ok'; }
+  if(dailyState.energy_pm!=null) $('pm-energy').value=dailyState.energy_pm;
+  if(dailyState.stress_pm!=null) $('pm-stress').value=dailyState.stress_pm;
+  if(dailyState.room!=null) $('pm-room').value=dailyState.room;
+  if(dailyState.control!=null) $('pm-control').value=dailyState.control;
+  if(dailyState.energy_pm!=null||dailyState.stress_pm!=null||dailyState.room!=null||dailyState.control!=null){ $('pm-status').textContent='저장됨'; $('pm-status').className='badge ok'; }
+}
+async function saveDaily(patch){
+  if(!currentUser) return;
+  const payload={user_id:currentUser.id,date:localDateKey(),...(dailyState||{}),...patch,updated_at:new Date().toISOString()};
+  delete payload.created_at;
+  const {data,error}=await supabaseClient.from('lara_daily_state').upsert(payload,{onConflict:'user_id,date'}).select().single();
+  if(error) throw error; dailyState=data; renderDailyState(); toast('저장했습니다');
+}
+
+function inferCaptureType(text){
+  if(/완료했|끝냈|처리했/.test(text)) return 'completion';
+  if(/매년|매월|매주|분기|앞으로|잊지|기억해/.test(text)) return 'recurrence';
+  if(/목표|올해 안|하고 싶/.test(text)) return 'goal';
+  if(/규칙|원칙|항상|하지 말/.test(text)) return 'rule';
+  if(/해야|할 일|해줘|추가/.test(text)) return 'task';
+  return 'note';
+}
+async function captureChat(){
+  const input=$('chat-input'); const text=input.value.trim(); if(!text) return;
+  addBubble(text,'user'); input.value='';
+  try{
+    const type=inferCaptureType(text);
+    const title=text.length>48?text.slice(0,48)+'…':text;
+    const {error}=await supabaseClient.from('lara_manager_inbox').insert({
+      user_id:currentUser.id,raw_text:text,item_type:type,extracted_title:title,status:'inbox',metadata:{source:'lara_manager_app_v0.1',capture_mode:true}
+    });
+    if(error) throw error;
+    addBubble(`기억함에 저장했습니다.\n분류: ${type}\n\nGPT 판단 연결 전에는 이 메시지를 Manager Inbox에 안전하게 보관합니다.`,'system');
+    toast('Manager Inbox에 저장됨'); await loadAll();
+  }catch(e){ console.error(e); addBubble('저장 중 오류가 발생했습니다.','system'); }
+}
+function addBubble(text,type){
+  const div=document.createElement('div'); div.className=`bubble ${type}`; div.textContent=text; $('chat-body').appendChild(div); $('chat-body').scrollTop=$('chat-body').scrollHeight;
+}
+
+$('google-signin-btn').addEventListener('click',async()=>{
+  $('login-error').textContent='';
+  const {error}=await supabaseClient.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.href}});
+  if(error) $('login-error').textContent='로그인 실패: '+error.message;
+});
+$('signout-btn').addEventListener('click',()=>supabaseClient.auth.signOut());
+$('refresh-btn').addEventListener('click',()=>loadAll().then(()=>toast('새로고침 완료')));
+$('am-form').addEventListener('submit',async e=>{e.preventDefault();try{await saveDaily({sleep_hours:$('am-sleep').value?Number($('am-sleep').value):null,energy_am:$('am-energy').value?Number($('am-energy').value):null,stress_am:$('am-stress').value?Number($('am-stress').value):null});}catch(err){console.error(err);toast('저장 실패')}});
+$('pm-form').addEventListener('submit',async e=>{e.preventDefault();try{await saveDaily({energy_pm:$('pm-energy').value?Number($('pm-energy').value):null,stress_pm:$('pm-stress').value?Number($('pm-stress').value):null,room:$('pm-room').value?Number($('pm-room').value):null,control:$('pm-control').value?Number($('pm-control').value):null});}catch(err){console.error(err);toast('저장 실패')}});
+$('chat-send').addEventListener('click',captureChat);
+$('chat-input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();captureChat();}});
+
+document.querySelectorAll('.nav-btn').forEach(btn=>btn.addEventListener('click',()=>{
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b===btn));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  const page=btn.dataset.page; $(`page-${page}`).classList.add('active');
+  $('page-title').textContent=({today:'오늘',work:'회사',personal:'개인',chat:'대화'})[page]||'MORI';
+}));
+
+supabaseClient.auth.onAuthStateChange((event,session)=>{
+  if(session?.user) showApp(session.user); else showLogin();
+});
+(async()=>{
+  const {data}=await supabaseClient.auth.getSession();
+  if(data?.session?.user) await showApp(data.session.user); else showLogin();
+})();
+</script>
+</body>
+</html>
